@@ -112,14 +112,16 @@
   });
 
   /* ---------- iframe height reporting ---------- */
+  var lastReported = -1;
   function reportHeight() {
     if (window.parent === window) return;
-    var h = Math.max(
-      document.documentElement.scrollHeight,
-      document.body.scrollHeight,
-      contentEl ? contentEl.scrollHeight : 0
-    ) + 2;   /* small buffer so the iframe is never a hair too short */
-    window.parent.postMessage({ type: 'mdv-height', height: h }, '*');
+    /* Measure the content box only: documentElement.scrollHeight tracks the
+       iframe viewport once it outgrows the content, which feeds back into
+       unbounded height growth. */
+    var h = contentEl ? contentEl.offsetHeight : 0;
+    if (h === lastReported) return;
+    lastReported = h;
+    window.parent.postMessage({ type: 'mdv-height', height: h + 2 }, '*');
   }
   function scheduleHeight() {
     if (window.parent === window) return;
