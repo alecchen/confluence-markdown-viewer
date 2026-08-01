@@ -34,6 +34,7 @@
   var params = new URLSearchParams(location.search);
   if (params.get('preset') === 'github') preset = 'github';
   if (['light', 'dark', 'auto'].indexOf(params.get('theme')) !== -1) themeMode = params.get('theme');
+  var enableToc = params.get('toc') === '1' || params.get('toc') === 'true';
   var saved = null;
   try { saved = localStorage.getItem('mdv-theme'); } catch (e) {}
   if (saved === 'light' || saved === 'dark' || saved === 'auto') themeMode = saved;
@@ -142,11 +143,55 @@
   });
 
   /* ---------- render ---------- */
+  function slugify(text) {
+    return String(text).toLowerCase().trim()
+      .replace(/[^\p{L}\p{N}\s-]/gu, '')
+      .replace(/[\s_]+/g, '-')
+      .replace(/-+/g, '-');
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  /* Assign an id to every h1-h6, then (if enabled) build a TOC that jumps to
+     them. In the embed the iframe cannot scroll, so jump links ask the parent
+     to scroll the Confluence page instead. */
+  function enhanceHeadings() {
+    var headings = contentEl.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    if (!headings.length) return;
+    var used = {}, items = [];
+    headings.forEach(function (h) {
+      var base = slugify(h.textContent) || 'section';
+      var n = used[base] || 0;
+      used[base] = n + 1;
+      var slug = base + (n ? '-' + n : '');
+      h.id = slug;
+      items.push('<li class="toc-l' + h.tagName[1] + '"><a href="#' + slug + '">' + escapeHtml(h.textContent) + '</a></li>');
+    });
+    if (!enableToc) return;
+    contentEl.insertAdjacentHTML('afterbegin',
+      '<details class="toc" open><summary>Contents</summary><ul>' + items.join('') + '</ul></details>');
+    contentEl.querySelectorAll('.toc a').forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        var target = document.getElementById(a.getAttribute('href').slice(1));
+        if (!target) return;
+        if (window.parent !== window) {
+          window.parent.postMessage({ type: 'mdv-scroll', top: Math.round(target.getBoundingClientRect().top) }, '*');
+        } else {
+          target.scrollIntoView();
+        }
+      });
+    });
+  }
+
   function render(text) {
     contentEl.innerHTML = marked.parse(text);
     contentEl.querySelectorAll('pre code').forEach(function (el) {
       hljs.highlightElement(el);
     });
+    enhanceHeadings();
     apply();
   }
   function fail(msg) {

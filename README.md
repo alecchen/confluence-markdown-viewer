@@ -118,7 +118,12 @@ Paste this into the HTML macro on the target page (change the `?src=` path per d
   window.addEventListener('message', function (e) {
     if (e.origin !== childOrigin) return;
     var d = e.data;
-    if (d && d.type === 'mdv-height') f.style.height = d.height + 'px';
+    if (!d) return;
+    if (d.type === 'mdv-height') f.style.height = d.height + 'px';
+    if (d.type === 'mdv-scroll') {           /* TOC jump: scroll the page to the heading */
+      var r = f.getBoundingClientRect();
+      window.scrollTo(0, window.pageYOffset + r.top + d.top - 80);
+    }
   });
 })();
 </script>
@@ -151,6 +156,9 @@ real viewer URL.
   same origin, so no CORS).
 - `?preset=github` — force the GitHub palette (A) for this doc.
 - `?theme=light|dark|auto` — force a theme for this load.
+- `?toc=1` — show a table of contents at the top of the doc. Every `h1`–`h6`
+  gets an anchor id; in the embed, TOC links ask the parent to scroll the
+  Confluence page to that heading.
 
 ## Origins
 
