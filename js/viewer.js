@@ -11,9 +11,16 @@
     if (ref.protocol === 'https:' || ref.protocol === 'http:') parentOrigin = ref.origin;
   } catch (e) {}
 
-  var SOLARIZED = {
-    light: { bg: '#fdf6e3', fg: '#657b83' },
-    dark:  { bg: '#002b36', fg: '#839496' }
+  /* Code block palettes. Default is github; solarized is opt-in via ?code= */
+  var CODE = {
+    github: {
+      light: { bg: '#f6f8fa', fg: '#1f2328', k: '#cf222e', s: '#0a3069', c: '#6e7781', n: '#0550ae', t: '#8250df', a: '#0a3069' },
+      dark:  { bg: '#161b22', fg: '#e6edf3', k: '#ff7b72', s: '#a5d6ff', c: '#8b949e', n: '#79c0ff', t: '#d2a8ff', a: '#79c0ff' }
+    },
+    solarized: {
+      light: { bg: '#fdf6e3', fg: '#657b83', k: '#859900', s: '#2aa198', c: '#93a1a1', n: '#d33682', t: '#268bd2', a: '#b58900' },
+      dark:  { bg: '#002b36', fg: '#839496', k: '#859900', s: '#2aa198', c: '#586e75', n: '#d33682', t: '#268bd2', a: '#b58900' }
+    }
   };
   var GITHUB = {
     light: { bg: '#ffffff', fg: '#1f2328', link: '#0969da', muted: '#57606a', border: '#d0d7de', header: '#f6f8fa' },
@@ -35,6 +42,7 @@
   if (params.get('preset') === 'github') preset = 'github';
   if (['light', 'dark', 'auto'].indexOf(params.get('theme')) !== -1) themeMode = params.get('theme');
   var enableToc = params.get('toc') === '1' || params.get('toc') === 'true';
+  var codeScheme = params.get('code') === 'solarized' ? 'solarized' : 'github';
   var saved = null;
   try { saved = localStorage.getItem('mdv-theme'); } catch (e) {}
   if (saved === 'light' || saved === 'dark' || saved === 'auto') themeMode = saved;
@@ -88,7 +96,7 @@
   function apply() {
     var dark = effectiveDark();
     var p = palette(dark);
-    var s = SOLARIZED[dark ? 'dark' : 'light'];
+    var c = CODE[codeScheme][dark ? 'dark' : 'light'];
     var st = document.documentElement.style;
     document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
     document.documentElement.setAttribute('data-preset', preset);
@@ -99,8 +107,14 @@
     st.setProperty('--border', p.border);
     st.setProperty('--table-header', p.header);
     st.setProperty('--blockquote', p.quote);
-    st.setProperty('--code-bg', s.bg);
-    st.setProperty('--code-fg', s.fg);
+    st.setProperty('--code-bg', c.bg);
+    st.setProperty('--code-fg', c.fg);
+    st.setProperty('--tok-k', c.k);
+    st.setProperty('--tok-s', c.s);
+    st.setProperty('--tok-c', c.c);
+    st.setProperty('--tok-n', c.n);
+    st.setProperty('--tok-t', c.t);
+    st.setProperty('--tok-a', c.a);
     updateToggle();
     scheduleHeight();
     renderMermaidIfNeeded();
