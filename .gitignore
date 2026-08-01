@@ -4,3 +4,4 @@ published/*
 !published/.gitkeep
 
 .DS_Store
+*.swp
