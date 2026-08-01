@@ -25,9 +25,8 @@ body {
 
 /* ---------- document ---------- */
 .markdown-body {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 24px 32px 72px;
+  width: 100%;
+  padding: 24px 24px 72px;
 }
 .markdown-body > :first-child { margin-top: 0; }
 .markdown-body > :last-child { margin-bottom: 0; }
