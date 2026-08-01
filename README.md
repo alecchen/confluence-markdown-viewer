@@ -64,7 +64,8 @@ Paste this into the HTML macro on the target page (change the `?src=` path per d
 
 ```html
 <iframe id="mdv" src="https://people.my_company_url.com/username/viewer/viewer.html?src=published/foo.md"
-        scrolling="no" style="width:100%;border:0;display:block;overflow:hidden;"></iframe>
+        scrolling="no" allow="clipboard-write"
+        style="width:100%;border:0;display:block;overflow:hidden;"></iframe>
 <script>
 (function () {
   var f = document.getElementById('mdv');
@@ -160,6 +161,14 @@ real viewer URL.
   gets an anchor id; in the embed, TOC links ask the parent to scroll the
   Confluence page to that heading.
 
+## Code blocks and diagrams
+
+- Every code block gets a **Copy** button (top-right, on hover; always visible on
+  touch). Copying uses `navigator.clipboard` with a legacy fallback, so the embed
+  block needs the `allow="clipboard-write"` attribute on the iframe.
+- ```mermaid blocks render as diagrams. Mermaid (cdnjs) loads lazily only when a
+  doc contains a mermaid block, and re-renders when the page theme toggles.
+
 ## Origins
 
 No hostnames need configuring. The embed script derives the child origin from the
@@ -190,5 +199,6 @@ Re-run the archive command to update (it replaces file contents).
 
 - marked 12.0.2 — https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js
 - highlight.js 11.9.0 — https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js
+- mermaid 10.9.1 (lazy, only when a ` ```mermaid ` block is present) — https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js
 - Inter + JetBrains Mono via Google Fonts (browser-side). If your network blocks
   Google Fonts, self-host the woff2 files under `css/fonts/` and update `viewer.html`.

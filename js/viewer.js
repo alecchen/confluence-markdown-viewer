@@ -103,6 +103,7 @@
     st.setProperty('--code-fg', s.fg);
     updateToggle();
     scheduleHeight();
+    renderMermaidIfNeeded();
   }
   var CYCLE = ['auto', 'light', 'dark'];
   toggleEl.addEventListener('click', function () {
@@ -188,12 +189,112 @@
     });
   }
 
+  /* ---------- mermaid diagrams (lazy-loaded from cdnjs) ---------- */
+  var MERMAID_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js';
+  var mermaidBlocks = [];
+  var lastMermaidTheme = null;
+  var mermaidPromise = null;
+
+  function loadMermaid() {
+    if (!mermaidPromise) {
+      mermaidPromise = new Promise(function (resolve, reject) {
+        var s = document.createElement('script');
+        s.src = MERMAID_CDN;
+        s.onload = function () { resolve(window.mermaid); };
+        s.onerror = function () { reject(new Error('mermaid failed to load')); };
+        document.head.appendChild(s);
+      });
+    }
+    return mermaidPromise;
+  }
+
+  function collectMermaid() {
+    mermaidBlocks = [];
+    contentEl.querySelectorAll('pre code.language-mermaid').forEach(function (code) {
+      var pre = code.parentNode;
+      pre.classList.add('mdv-mermaid');   /* not 'mermaid': avoid auto-init on script load */
+      mermaidBlocks.push({ pre: pre, src: code.textContent });
+    });
+  }
+
+  function renderAllMermaid() {
+    var theme = effectiveDark() ? 'dark' : 'default';
+    lastMermaidTheme = theme;
+    mermaid.initialize({ startOnLoad: false, theme: theme, securityLevel: 'loose' });
+    var queue = Promise.resolve();
+    mermaidBlocks.forEach(function (b, i) {
+      queue = queue.then(function () {
+        return mermaid.render('mdv-m-' + i, b.src).then(function (r) {
+          b.pre.innerHTML = r.svg;
+        }).catch(function (err) {
+          b.pre.innerHTML = '<div class="mermaid-error">Mermaid error: ' + escapeHtml(err.message) + '</div>';
+        });
+      });
+    });
+  }
+
+  function renderMermaidIfNeeded() {
+    if (!mermaidBlocks.length) return;
+    var theme = effectiveDark() ? 'dark' : 'default';
+    if (theme === lastMermaidTheme) return;
+    loadMermaid().then(renderAllMermaid).catch(function () {});
+  }
+
+  /* ---------- copy-code buttons ---------- */
+  function addCopyButtons() {
+    contentEl.querySelectorAll('pre').forEach(function (pre) {
+      if (pre.classList.contains('mdv-mermaid')) return;
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'copy-btn';
+      btn.textContent = 'Copy';
+      btn.addEventListener('click', function () {
+        var code = pre.querySelector('code');
+        if (!code) return;
+        copyText(code.textContent, btn);
+      });
+      pre.appendChild(btn);
+    });
+  }
+
+  function legacyCopy(text) {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch (e) { return false; }
+  }
+
+  function copyText(text, btn) {
+    function done(ok) {
+      var orig = btn.textContent;
+      btn.textContent = ok ? 'Copied' : 'Copy failed';
+      setTimeout(function () { btn.textContent = orig; }, 1500);
+    }
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(
+        function () { done(true); },
+        function () { done(legacyCopy(text)); });
+    } else {
+      done(legacyCopy(text));
+    }
+  }
+
   function render(text) {
     contentEl.innerHTML = marked.parse(text);
     contentEl.querySelectorAll('pre code').forEach(function (el) {
+      if (el.classList.contains('language-mermaid')) return;
       hljs.highlightElement(el);
     });
+    collectMermaid();
     enhanceHeadings();
+    addCopyButtons();
     apply();
   }
   function fail(msg) {
