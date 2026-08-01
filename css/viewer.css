@@ -5,7 +5,7 @@
   --bg: #ffffff; --fg: #1f2328; --link: #0969da; --muted: #57606a;
   --border: #d0d7de; --table-header: #f6f8fa; --blockquote: #f6f8fa;
   --code-bg: #fdf6e3; --code-fg: #657b83;
-  color-scheme: light;
+  color-scheme: light dark;
 }
 :root[data-theme="dark"] { color-scheme: dark; }
 
@@ -80,6 +80,13 @@ body {
   text-align: left;
 }
 .markdown-body th { background: var(--table-header); font-weight: 600; }
+/* Table lines and header: keep clearly visible in both themes */
+:root[data-theme="light"] .markdown-body th,
+:root[data-theme="light"] .markdown-body td { border-color: #b9c0c8; }
+:root[data-theme="light"] .markdown-body th { background: #eef1f4; }
+:root[data-theme="dark"] .markdown-body th,
+:root[data-theme="dark"] .markdown-body td { border-color: #454f59; }
+:root[data-theme="dark"] .markdown-body th { background: #222830; }
 
 .markdown-body code, .markdown-body pre {
   font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
@@ -102,10 +109,11 @@ body {
 }
 .markdown-body pre code {
   padding: 0;
-  background: transparent;
+  background: transparent !important;
   color: inherit;
   border-radius: 0;
 }
+.markdown-body pre code.hljs { background: transparent !important; }
 
 /* Solarized token colors (comment tint differs between themes) */
 .hljs { background: transparent; }
