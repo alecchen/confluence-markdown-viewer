@@ -2,9 +2,14 @@
 (function () {
   'use strict';
 
-  /* ---------- config: set to your real hosts ---------- */
-  var PARENT_ORIGINS = ['https://confluence.my_company_url.com'];
-  var VIEWER_ORIGIN = 'https://people.my_company_url.com';
+  /* ---------- parent origin: derived, no hardcoded hosts ---------- */
+  /* The embedding page's origin comes from document.referrer, so the viewer
+     accepts theme messages from whatever page iframes it (your Confluence). */
+  var parentOrigin = null;
+  try {
+    var ref = new URL(document.referrer);
+    if (ref.protocol === 'https:' || ref.protocol === 'http:') parentOrigin = ref.origin;
+  } catch (e) {}
 
   var SOLARIZED = {
     light: { bg: '#fdf6e3', fg: '#657b83' },
@@ -41,8 +46,10 @@
   /* Confluence sends bg/fg/link; borders, muted text and table headers are derived */
   function derive(bg, fg, link, gh) {
     var f = rgb(fg) || rgb(gh.fg);
+    /* accept any opaque CSS color, not just hex (Confluence often sends rgb()) */
+    var bgOk = bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)';
     return {
-      bg: /^#[0-9a-f]{6}$/i.test(bg) ? bg : gh.bg,
+      bg: bgOk ? bg : gh.bg,
       fg: fg || gh.fg,
       link: link || gh.link,
       border: 'rgba(' + f + ',0.22)',
@@ -120,7 +127,7 @@
 
   /* ---------- parent theme messages ---------- */
   window.addEventListener('message', function (e) {
-    if (PARENT_ORIGINS.indexOf(e.origin) === -1) return;
+    if (parentOrigin && e.origin !== parentOrigin) return;
     var d = e.data;
     if (!d || typeof d !== 'object') return;
     if (d.type === 'mdv-theme') {

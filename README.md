@@ -68,26 +68,38 @@ Paste this into the HTML macro on the target page (change the `?src=` path per d
 <script>
 (function () {
   var f = document.getElementById('mdv');
+  var childOrigin = new URL(f.src).origin;   /* derived from the iframe URL, no hardcoding */
+
+  function luminance(c) {
+    var m = c.match(/(\d+(?:\.\d+)?)/g);
+    if (!m || m.length < 3) return 255;
+    return 0.299 * (+m[0]) + 0.587 * (+m[1]) + 0.114 * (+m[2]);
+  }
+  function pageBg() {
+    var el = document.body;
+    while (el) {                              /* walk up past transparent bodies */
+      var c = window.getComputedStyle(el).backgroundColor;
+      if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') return c;
+      el = el.parentElement;
+    }
+    return null;
+  }
   function send() {
-    var dark = false;
-    var th = document.documentElement.getAttribute('data-theme');
-    if (th) dark = /dark/i.test(th);
-    else if (document.body.classList && document.body.classList.contains('dark')) dark = true;
-    else dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var bg = pageBg();
+    var dark = bg ? luminance(bg) < 128 : window.matchMedia('(prefers-color-scheme: dark)').matches;
     var s = window.getComputedStyle(document.body);
     var a = document.body.querySelector('a');
-    var link = a ? window.getComputedStyle(a).color : '#0052cc';
     f.contentWindow.postMessage({
       type: 'mdv-theme',
       theme: dark ? 'dark' : 'light',
-      bg: s.backgroundColor,
-      fg: s.color,
-      link: link
-    }, 'https://people.my_company_url.com');
+      bg: bg || (dark ? '#161a1d' : '#ffffff'),
+      fg: s.color || (dark ? '#b6c2cf' : '#172b4d'),
+      link: a ? window.getComputedStyle(a).color : (dark ? '#579dff' : '#0052cc')
+    }, childOrigin);
   }
   f.addEventListener('load', send);
   window.addEventListener('message', function (e) {
-    if (e.origin !== 'https://people.my_company_url.com') return;
+    if (e.origin !== childOrigin) return;
     var d = e.data;
     if (d && d.type === 'mdv-height') f.style.height = d.height + 'px';
   });
@@ -96,8 +108,10 @@ Paste this into the HTML macro on the target page (change the `?src=` path per d
 ```
 
 The `<script>` is optional but recommended: it matches the rendered doc to the
-Confluence page theme and keeps the iframe exactly as tall as its content (no nested
-scrollbars). Origins are checked on both sides.
+Confluence page theme (background color, text color, link color) and keeps the
+iframe exactly as tall as its content (no nested scrollbars). Origins are derived
+from the iframe URL and the referrer, so no hostnames need configuring — only the
+`src` above must point at your real viewer URL.
 
 ## Theme model
 
@@ -119,11 +133,12 @@ scrollbars). Origins are checked on both sides.
 - `?preset=github` — force the GitHub palette (A) for this doc.
 - `?theme=light|dark|auto` — force a theme for this load.
 
-## Hosts
+## Origins
 
-`js/viewer.js` allowlists the parent origin (`confluence.my_company_url.com`) and
-`viewer.js` + the embed script both use the viewer origin
-(`people.my_company_url.com`). Replace these with your real hosts.
+No hostnames need configuring. The embed script derives the child origin from the
+iframe `src`, and the viewer derives the parent origin from `document.referrer`, so
+the theme and height messages are only accepted between the iframe and the page that
+hosts it.
 
 ## Security
 
