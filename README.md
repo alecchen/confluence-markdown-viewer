@@ -64,7 +64,7 @@ Paste this into the HTML macro on the target page (change the `?src=` path per d
 
 ```html
 <iframe id="mdv" src="https://people.my_company_url.com/username/viewer/viewer.html?src=published/foo.md"
-        style="width:100%;border:0;display:block;"></iframe>
+        scrolling="no" style="width:100%;border:0;display:block;overflow:hidden;"></iframe>
 <script>
 (function () {
   var f = document.getElementById('mdv');

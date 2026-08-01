@@ -112,7 +112,7 @@
       document.documentElement.scrollHeight,
       document.body.scrollHeight,
       contentEl ? contentEl.scrollHeight : 0
-    );
+    ) + 2;   /* small buffer so the iframe is never a hair too short */
     window.parent.postMessage({ type: 'mdv-height', height: h }, '*');
   }
   function scheduleHeight() {
