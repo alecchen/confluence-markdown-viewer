@@ -19,6 +19,12 @@
     light: { bg: '#ffffff', fg: '#1f2328', link: '#0969da', muted: '#57606a', border: '#d0d7de', header: '#f6f8fa' },
     dark:  { bg: '#0d1117', fg: '#e6edf3', link: '#4493f8', muted: '#8b949e', border: '#30363d', header: '#161b22' }
   };
+  /* Confluence default palette, used as the B-preset fallback when no parent
+     colors arrive (standalone open or GitHub Pages test). */
+  var CONFLUENCE_DEFAULT = {
+    light: { bg: '#ffffff', fg: '#172b4d', link: '#0052cc', muted: '#44546f', border: '#dfe1e6', header: '#f4f5f7' },
+    dark:  { bg: '#1d2125', fg: '#b6c2cf', link: '#579dff', muted: '#9fadbc', border: '#454f59', header: '#2a3035' }
+  };
 
   /* ---------- state ---------- */
   var themeMode = 'auto';        /* light | dark | auto (manual override) */
@@ -59,13 +65,12 @@
     };
   }
   function palette(dark) {
-    var gh = GITHUB[dark ? 'dark' : 'light'];
-    if (preset === 'github') return gh;
+    if (preset === 'github') return GITHUB[dark ? 'dark' : 'light'];
     /* use Confluence colors only when its reported theme matches the resolved one */
     if (conf && conf.bg && conf.fg && conf.theme === (dark ? 'dark' : 'light')) {
-      return derive(conf.bg, conf.fg, conf.link, gh);
+      return derive(conf.bg, conf.fg, conf.link, CONFLUENCE_DEFAULT[dark ? 'dark' : 'light']);
     }
-    return gh;
+    return CONFLUENCE_DEFAULT[dark ? 'dark' : 'light'];
   }
   function effectiveDark() {
     if (themeMode === 'light') return false;

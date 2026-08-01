@@ -93,7 +93,7 @@ Paste this into the HTML macro on the target page (change the `?src=` path per d
     return {
       type: 'mdv-theme',
       theme: dark ? 'dark' : 'light',
-      bg: bg || (dark ? '#161a1d' : '#ffffff'),
+      bg: bg || (dark ? '#1d2125' : '#ffffff'),
       fg: s.color || (dark ? '#b6c2cf' : '#172b4d'),
       link: a ? window.getComputedStyle(a).color : (dark ? '#579dff' : '#0052cc')
     };
