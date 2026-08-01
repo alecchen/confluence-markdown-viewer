@@ -69,6 +69,7 @@ Paste this into the HTML macro on the target page (change the `?src=` path per d
 (function () {
   var f = document.getElementById('mdv');
   var childOrigin = new URL(f.src).origin;   /* derived from the iframe URL, no hardcoding */
+  var lastBg = null;
 
   function luminance(c) {
     var m = c.match(/(\d+(?:\.\d+)?)/g);
@@ -84,20 +85,36 @@ Paste this into the HTML macro on the target page (change the `?src=` path per d
     }
     return null;
   }
-  function send() {
+  function build() {
     var bg = pageBg();
     var dark = bg ? luminance(bg) < 128 : window.matchMedia('(prefers-color-scheme: dark)').matches;
     var s = window.getComputedStyle(document.body);
     var a = document.body.querySelector('a');
-    f.contentWindow.postMessage({
+    return {
       type: 'mdv-theme',
       theme: dark ? 'dark' : 'light',
       bg: bg || (dark ? '#161a1d' : '#ffffff'),
       fg: s.color || (dark ? '#b6c2cf' : '#172b4d'),
       link: a ? window.getComputedStyle(a).color : (dark ? '#579dff' : '#0052cc')
-    }, childOrigin);
+    };
   }
-  f.addEventListener('load', send);
+  function sendNow() {
+    var m = build();
+    if (m.bg === lastBg) return;              /* only push on an actual change */
+    lastBg = m.bg;
+    f.contentWindow.postMessage(m, childOrigin);
+  }
+  var t = null;
+  function schedule() { clearTimeout(t); t = setTimeout(sendNow, 120); }
+
+  sendNow();
+  f.addEventListener('load', sendNow);
+  /* re-sync live when Confluence toggles its theme */
+  new MutationObserver(schedule).observe(document.documentElement, { attributes: true });
+  new MutationObserver(schedule).observe(document.body, { attributes: true });
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', schedule);
+  setInterval(sendNow, 1500);                 /* safety net for any toggle mechanism */
+
   window.addEventListener('message', function (e) {
     if (e.origin !== childOrigin) return;
     var d = e.data;
@@ -108,10 +125,12 @@ Paste this into the HTML macro on the target page (change the `?src=` path per d
 ```
 
 The `<script>` is optional but recommended: it matches the rendered doc to the
-Confluence page theme (background color, text color, link color) and keeps the
-iframe exactly as tall as its content (no nested scrollbars). Origins are derived
-from the iframe URL and the referrer, so no hostnames need configuring — only the
-`src` above must point at your real viewer URL.
+Confluence page theme (background color, text color, link color), keeps the iframe
+exactly as tall as its content (no nested scrollbars), and **re-syncs live when
+Confluence toggles between light and dark** — only pushing an update when the page
+background actually changes. Origins are derived from the iframe URL and the
+referrer, so no hostnames need configuring — only the `src` above must point at your
+real viewer URL.
 
 ## Theme model
 
