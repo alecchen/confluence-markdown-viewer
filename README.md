@@ -48,15 +48,35 @@ a pre-commit hook that copies the staged draft into the served tree, so
 ```sh
 #!/bin/sh
 set -e
-mkdir -p "$HOME/public_html/username/viewer/published"
-for f in $(git diff --cached --name-only -- '*.md'); do
-  cp "$f" "$HOME/public_html/username/viewer/published/"
+DEST="$HOME/public_html/username/viewer/published"
+mkdir -p "$DEST"
+for f in $(git diff --cached --name-only); do
+  case "$f" in
+    *.md|*.png|*.jpg|*.jpeg|*.gif|*.svg|*.webp|*.pdf|*.txt|*.csv|*.zip)
+      mkdir -p "$DEST/$(dirname "$f")"
+      cp "$f" "$DEST/$f" ;;
+  esac
 done
 ```
 
 Make it executable (`chmod +x`). Write/edit drafts in VS Code over SSH, preview there,
 then `git commit` to publish. The draft repo keeps file history; NFS snapshots are the
-rollback for the served copies.
+rollback for the served copies. Folders are preserved, so an image at `images/x.png`
+in the draft lands at `published/images/x.png`.
+
+## Images and attachments
+
+Keep assets next to the markdown (or in a subfolder) and reference them with
+relative paths — the viewer resolves them against the markdown file's directory:
+
+```md
+![architecture](images/architecture.png)
+[report](report.pdf)
+```
+
+With `?src=published/foo.md`, `images/architecture.png` resolves to
+`published/images/architecture.png`. Only the extensions listed in the publish
+hook are copied to the served tree; add others to the `case` list if you need them.
 
 ## Embed in Confluence
 

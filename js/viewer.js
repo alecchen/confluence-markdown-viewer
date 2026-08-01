@@ -300,8 +300,30 @@
     }
   }
 
+  /* ---------- relative asset paths ---------- */
+  /* Images/attachments referenced with relative paths in the markdown resolve
+     against the markdown file's directory, not the viewer page. */
+  var srcDir = (function () {
+    var parts = (params.get('src') || '').split('/');
+    parts.pop();
+    return parts.join('/');
+  })();
+
+  function rewriteAssetPaths() {
+    if (!srcDir) return;
+    var prefix = srcDir + '/';
+    contentEl.querySelectorAll('img[src], a[href], video[src], audio[src], source[src]').forEach(function (el) {
+      var attr = el.hasAttribute('src') ? 'src' : 'href';
+      var v = el.getAttribute(attr);
+      if (!v) return;
+      if (/^(?:[a-z][a-z0-9+.-]*:|\/|#)/i.test(v) || v.indexOf('//') === 0) return;
+      el.setAttribute(attr, prefix + v);
+    });
+  }
+
   function render(text) {
     contentEl.innerHTML = marked.parse(text);
+    rewriteAssetPaths();
     contentEl.querySelectorAll('pre code').forEach(function (el) {
       if (el.classList.contains('language-mermaid')) return;
       hljs.highlightElement(el);
