@@ -1,0 +1,6 @@
+# Served markdown lives here but is NOT tracked — it is plain files, NFS-backed.
+# Drafts are copied here by the draft repo's pre-commit hook; never commit them.
+published/*
+!published/.gitkeep
+
+.DS_Store

@@ -1,0 +1,4 @@
+# Block direct access to the .git directory (and other dotfiles).
+# Requires AllowOverride in Apache userdir; verify after deploy (see README).
+RedirectMatch 404 /\.git(/|$)
+RedirectMatch 404 /\.[^/]*$

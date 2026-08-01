@@ -1,0 +1,140 @@
+/* Confluence Markdown Viewer — css/viewer.css */
+
+/* Fallback defaults (GitHub light) until js/viewer.js sets the real values */
+:root {
+  --bg: #ffffff; --fg: #1f2328; --link: #0969da; --muted: #57606a;
+  --border: #d0d7de; --table-header: #f6f8fa; --blockquote: #f6f8fa;
+  --code-bg: #fdf6e3; --code-fg: #657b83;
+  color-scheme: light;
+}
+:root[data-theme="dark"] { color-scheme: dark; }
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  word-wrap: break-word;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color .15s ease, color .15s ease;
+}
+
+/* ---------- document ---------- */
+.markdown-body {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 32px 72px;
+}
+.markdown-body > :first-child { margin-top: 0; }
+.markdown-body > :last-child { margin-bottom: 0; }
+
+.markdown-body h1, .markdown-body h2, .markdown-body h3,
+.markdown-body h4, .markdown-body h5, .markdown-body h6 {
+  margin: 24px 0 16px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.markdown-body h1 { font-size: 2em; padding-bottom: .3em; border-bottom: 1px solid var(--border); }
+.markdown-body h2 { font-size: 1.5em; padding-bottom: .3em; border-bottom: 1px solid var(--border); }
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em; }
+.markdown-body h5, .markdown-body h6 { font-size: .875em; color: var(--muted); }
+
+.markdown-body p, .markdown-body ul, .markdown-body ol,
+.markdown-body blockquote, .markdown-body pre,
+.markdown-body table, .markdown-body hr, .markdown-body dl {
+  margin: 16px 0;
+}
+
+.markdown-body a { color: var(--link); text-decoration: none; }
+.markdown-body a:hover { text-decoration: underline; }
+
+.markdown-body ul, .markdown-body ol { padding-left: 2em; }
+.markdown-body li + li { margin-top: 4px; }
+.markdown-body li > ul, .markdown-body li > ol { margin: 4px 0; }
+.markdown-body input[type="checkbox"] { margin-right: .5em; }
+
+.markdown-body blockquote {
+  padding: 4px 1em;
+  color: var(--muted);
+  border-left: 4px solid var(--border);
+  background: var(--blockquote);
+}
+
+.markdown-body hr {
+  height: 1px;
+  border: 0;
+  background: var(--border);
+}
+
+.markdown-body img { max-width: 100%; }
+
+.markdown-body table { border-collapse: collapse; display: block; overflow-x: auto; }
+.markdown-body th, .markdown-body td {
+  padding: 6px 13px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+.markdown-body th { background: var(--table-header); font-weight: 600; }
+
+.markdown-body code, .markdown-body pre {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 85%;
+}
+.markdown-body code {
+  padding: .2em .4em;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  border-radius: 6px;
+}
+.markdown-body pre {
+  padding: 16px;
+  overflow-x: auto;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  line-height: 1.45;
+}
+.markdown-body pre code {
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  border-radius: 0;
+}
+
+/* Solarized token colors (comment tint differs between themes) */
+.hljs { background: transparent; }
+.hljs-keyword, .hljs-selector-tag, .hljs-type, .hljs-literal, .hljs-meta { color: #859900; }
+.hljs-string, .hljs-regexp, .hljs-symbol, .hljs-quote { color: #2aa198; }
+.hljs-number, .hljs-built_in, .hljs-constant, .hljs-tag { color: #d33682; }
+.hljs-title, .hljs-function, .hljs-name, .hljs-section { color: #268bd2; }
+.hljs-attr, .hljs-attribute, .hljs-variable, .hljs-template-variable, .hljs-params { color: #b58900; }
+:root[data-theme="light"] .hljs-comment { color: #93a1a1; }
+:root[data-theme="dark"] .hljs-comment { color: #586e75; }
+.hljs-comment, .hljs-quote { font-style: italic; }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 600; }
+
+/* ---------- theme toggle ---------- */
+#theme-toggle {
+  position: fixed;
+  top: 12px;
+  right: 16px;
+  z-index: 100;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  padding: 5px 10px;
+  cursor: pointer;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  opacity: .85;
+}
+#theme-toggle:hover { opacity: 1; }

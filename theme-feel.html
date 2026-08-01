@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Theme feel-test — B (Confluence) vs A (GitHub)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+
+  /* ---------- presets: page chrome ---------- */
+  /* B — Confluence computed colors (simulated here; real embed sends them via postMessage) */
+  html[data-preset="confluence"][data-theme="light"] {
+    --bg:#ffffff; --fg:#172b4d; --link:#0052cc; --muted:#44546f;
+    --border:#dfe1e6; --table-header:#f4f5f7; --blockquote:#f4f5f7;
+  }
+  html[data-preset="confluence"][data-theme="dark"] {
+    --bg:#161a1d; --fg:#b6c2cf; --link:#579dff; --muted:#9fadbc;
+    --border:#454f59; --table-header:#1d2125; --blockquote:#1d2125;
+  }
+  /* A — GitHub fixed palette */
+  html[data-preset="github"][data-theme="light"] {
+    --bg:#ffffff; --fg:#1f2328; --link:#0969da; --muted:#57606a;
+    --border:#d0d7de; --table-header:#f6f8fa; --blockquote:#f6f8fa;
+  }
+  html[data-preset="github"][data-theme="dark"] {
+    --bg:#0d1117; --fg:#e6edf3; --link:#4493f8; --muted:#8b949e;
+    --border:#30363d; --table-header:#161b22; --blockquote:#161b22;
+  }
+
+  /* ---------- base ---------- */
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 16px; line-height: 1.5;
+    transition: background .15s, color .15s;
+  }
+
+  /* ---------- controls ---------- */
+  .bar {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px;
+    padding: 8px 24px; background: var(--bg);
+    border-bottom: 1px solid var(--border); font-size: 13px;
+  }
+  .bar .group { display: flex; align-items: center; gap: 4px; }
+  .bar .label { color: var(--muted); font-weight: 600; margin-right: 4px; }
+  .bar button {
+    font: inherit; cursor: pointer; padding: 4px 10px;
+    background: var(--blockquote); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  .bar button:hover { border-color: var(--link); }
+  .bar button.on {
+    background: var(--link); border-color: var(--link); color: #ffffff;
+  }
+  .readout { font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--muted); }
+
+  /* ---------- document ---------- */
+  .doc { max-width: 900px; margin: 0 auto; padding: 32px 32px 80px; }
+  h1, h2, h3 { font-family: "Inter", sans-serif; }
+  h1 { font-size: 2em; border-bottom: 1px solid var(--border); padding-bottom: .3em; }
+  h2 { font-size: 1.5em; border-bottom: 1px solid var(--border); padding-bottom: .3em; margin-top: 24px; }
+  h3 { font-size: 1.25em; margin-top: 24px; }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  blockquote {
+    margin: 16px 0; padding: 8px 16px; color: var(--muted);
+    border-left: 4px solid var(--border); background: var(--blockquote);
+  }
+  ul { padding-left: 2em; }
+  table { border-collapse: collapse; margin: 16px 0; display: block; overflow-x: auto; }
+  th, td { padding: 6px 13px; border: 1px solid var(--border); text-align: left; }
+  th { background: var(--table-header); font-weight: 600; }
+
+  /* ---------- code: always Solarized (fixed requirement) ---------- */
+  code, pre { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace; font-size: 85%; }
+  html[data-theme="light"] code { background:#fdf6e3; color:#657b83; }
+  html[data-theme="dark"]  code { background:#002b36; color:#839496; }
+  code { padding: .2em .4em; border-radius: 6px; }
+  pre {
+    margin: 16px 0; padding: 0;
+    border: 1px solid var(--border); border-radius: 6px; overflow-x: auto;
+  }
+  pre code { padding: 0; background: none; }
+  .hljs { display: block; overflow-x: auto; padding: 16px; line-height: 1.45; }
+  html[data-theme="light"] .hljs { background:#fdf6e3; color:#657b83; }
+  html[data-theme="dark"]  .hljs { background:#002b36; color:#839496; }
+  /* Solarized token colors */
+  .hljs-keyword, .hljs-selector-tag, .hljs-type, .hljs-literal, .hljs-meta { color:#859900; }
+  .hljs-string, .hljs-regexp, .hljs-symbol, .hljs-quote { color:#2aa198; }
+  .hljs-number, .hljs-built_in, .hljs-constant, .hljs-tag { color:#d33682; }
+  .hljs-title, .hljs-function, .hljs-name, .hljs-section, .hljs-title.function_ { color:#268bd2; }
+  .hljs-attr, .hljs-attribute, .hljs-variable, .hljs-template-variable, .hljs-params { color:#b58900; }
+  html[data-theme="light"] .hljs-comment, html[data-theme="light"] .hljs-quote { color:#93a1a1; }
+  html[data-theme="dark"]  .hljs-comment, html[data-theme="dark"]  .hljs-quote { color:#586e75; }
+  .hljs-comment, .hljs-quote { font-style: italic; }
+  .hljs-emphasis { font-style: italic; }
+  .hljs-strong { font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="group">
+    <span class="label">Preset</span>
+    <button data-group="preset" data-value="confluence" class="on">B · Confluence</button>
+    <button data-group="preset" data-value="github">A · GitHub</button>
+  </div>
+  <div class="group">
+    <span class="label">Theme</span>
+    <button data-group="theme" data-value="light">Light</button>
+    <button data-group="theme" data-value="dark">Dark</button>
+    <button data-group="theme" data-value="auto">Auto</button>
+  </div>
+  <span class="readout" id="readout"></span>
+</div>
+
+<div class="doc" id="content"></div>
+
+<script type="text/markdown" id="sample">
+# Project Status
+
+This is the viewer prototype. Preset **B** (Confluence) is the default; **A** (GitHub) is the optional override.
+
+## How theming works
+
+Normal text, **bold**, *italic*, `inline code`, and a [link](https://example.com). Body background, text, link, and border colors come from the active preset. Code blocks always use Solarized.
+
+> Blockquote: border, background, and muted text follow the preset.
+
+## Sample Table
+
+| Feature | Status | Notes |
+| --- | --- | --- |
+| Theme detection | Done | Confluence theme via parent postMessage |
+| Code highlight | Done | Solarized, highlight.js from cdnjs |
+| Draft to publish | In review | docs/published only |
+
+## Code Sample (JavaScript)
+
+```js
+const marked = require('marked');           // markdown to html
+function render(src) {
+  const text = fetch(src).then(r => r.text());
+  const html = marked.parse(text);          // hljs colors the tokens
+  return html;                              // count = 42
+}
+```
+
+## Feature List
+
+- Markdown stays the single source of truth in Git.
+- No build step: static HTML/CSS/JS.
+- marked.js and highlight.js loaded from cdnjs only.
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+(function () {
+  var root = document.documentElement;
+
+  var COLORS = {
+    confluence: {
+      light: { bg:'#ffffff', fg:'#172b4d', link:'#0052cc', border:'#dfe1e6' },
+      dark:  { bg:'#161a1d', fg:'#b6c2cf', link:'#579dff', border:'#454f59' }
+    },
+    github: {
+      light: { bg:'#ffffff', fg:'#1f2328', link:'#0969da', border:'#d0d7de' },
+      dark:  { bg:'#0d1117', fg:'#e6edf3', link:'#4493f8', border:'#30363d' }
+    }
+  };
+
+  var themeMode = localStorage.getItem('mdv-theme') || 'auto';   // light | dark | auto
+  var preset = 'confluence';                                     // B default, A optional
+  var mq = window.matchMedia('(prefers-color-scheme: dark)');
+  var readoutEl = document.getElementById('readout');
+
+  function isDark() { return themeMode === 'auto' ? mq.matches : themeMode === 'dark'; }
+
+  function syncButtons() {
+    [['theme', themeMode], ['preset', preset]].forEach(function (pair) {
+      var active = pair[1];
+      document.querySelectorAll('.bar button[data-group="' + pair[0] + '"]').forEach(function (b) {
+        if (b.getAttribute('data-value') === active) b.classList.add('on');
+        else b.classList.remove('on');
+      });
+    });
+  }
+
+  function apply() {
+    var dark = isDark();
+    root.setAttribute('data-theme', dark ? 'dark' : 'light');
+    root.setAttribute('data-preset', preset);
+    var c = COLORS[preset][dark ? 'dark' : 'light'];
+    readoutEl.textContent =
+      (preset === 'confluence' ? 'B · Confluence' : 'A · GitHub') +
+      '   bg ' + c.bg + '  fg ' + c.fg + '  link ' + c.link + '  border ' + c.border;
+    syncButtons();
+  }
+
+  function setTheme(t) { themeMode = t; localStorage.setItem('mdv-theme', t); apply(); }
+  function setPreset(p) { preset = p; apply(); }
+
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('.bar button');
+    if (!b) return;
+    if (b.getAttribute('data-group') === 'theme') setTheme(b.getAttribute('data-value'));
+    else setPreset(b.getAttribute('data-value'));
+  });
+
+  mq.addEventListener('change', function () { if (themeMode === 'auto') apply(); });
+
+  function render(md) {
+    document.getElementById('content').innerHTML = marked.parse(md);
+    document.querySelectorAll('pre code').forEach(function (el) { hljs.highlightElement(el); });
+  }
+
+  var src = new URLSearchParams(location.search).get('src');
+  if (src) {
+    fetch(src).then(function (r) { return r.text(); }).then(render)
+      .catch(function () { render(document.getElementById('sample').textContent); });
+  } else {
+    render(document.getElementById('sample').textContent);
+  }
+
+  apply();
+})();
+</script>
+</body>
+</html>
