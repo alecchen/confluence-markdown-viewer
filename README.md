@@ -192,7 +192,7 @@ real viewer URL.
 - Every code block gets a **Copy** button (top-right, on hover; always visible on
   touch). Copying uses `navigator.clipboard` with a legacy fallback, so the embed
   block needs the `allow="clipboard-write"` attribute on the iframe.
-- ```mermaid blocks render as diagrams. Mermaid (cdnjs) loads lazily only when a
+- Fenced blocks tagged ```` ```mermaid ```` render as diagrams. Mermaid (cdnjs) loads lazily only when a
   doc contains a mermaid block, and re-renders when the page theme toggles.
 
 ## Origins
@@ -225,6 +225,6 @@ Re-run the archive command to update (it replaces file contents).
 
 - marked 12.0.2 — https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js
 - highlight.js 11.9.0 — https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js
-- mermaid 10.9.1 (lazy, only when a ` ```mermaid ` block is present) — https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js
+- mermaid 10.9.1 (lazy, only when a ```` ```mermaid ```` block is present) — https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js
 - Inter + JetBrains Mono via Google Fonts (browser-side). If your network blocks
   Google Fonts, self-host the woff2 files under `css/fonts/` and update `viewer.html`.
