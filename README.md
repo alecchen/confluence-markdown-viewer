@@ -169,9 +169,10 @@ real viewer URL.
   GitHub Pages), the viewer uses the browser theme with the GitHub palette.
 - **Manual override:** the small pill at the top-right cycles auto → light → dark and
   persists in localStorage.
-- **Code:** GitHub code palette by default (background + syntax colors); Solarized
-  is opt-in via `?code=solarized`. Block and inline code colors follow the
-  resolved theme.
+- **Code:** GitHub palette in light, Nord in dark (the defaults). Other schemes via
+  `?code=` — `github`, `nord`, `solarized`, `one-dark`, `atlassian` — an explicit
+  choice applies to both themes. Block and inline code colors follow the resolved
+  theme.
 
 ## Viewer parameters
 
@@ -182,8 +183,9 @@ real viewer URL.
 - `?toc=1` — show a table of contents at the top of the doc. Every `h1`–`h6`
   gets an anchor id; in the embed, TOC links ask the parent to scroll the
   Confluence page to that heading.
-- `?code=github|solarized` — code block colors. Default `github`; `solarized`
-  opts into the Solarized palette. E.g. `viewer.html?src=published/foo.md&code=solarized`.
+- `?code=github|nord|solarized|one-dark|atlassian` — code block colors. Default is
+  `github` in light, `nord` in dark; an explicit scheme applies to both themes.
+  E.g. `viewer.html?src=published/foo.md&code=nord`.
 
 ## Code blocks and diagrams
 

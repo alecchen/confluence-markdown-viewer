@@ -11,15 +11,28 @@
     if (ref.protocol === 'https:' || ref.protocol === 'http:') parentOrigin = ref.origin;
   } catch (e) {}
 
-  /* Code block palettes. Default is github; solarized is opt-in via ?code= */
+  /* Code block palettes. Default: github for light, nord for dark.
+     Explicit ?code= applies the chosen scheme to both themes. */
   var CODE = {
     github: {
       light: { bg: '#f6f8fa', fg: '#1f2328', k: '#cf222e', s: '#0a3069', c: '#6e7781', n: '#0550ae', t: '#8250df', a: '#0a3069' },
       dark:  { bg: '#161b22', fg: '#e6edf3', k: '#ff7b72', s: '#a5d6ff', c: '#8b949e', n: '#79c0ff', t: '#d2a8ff', a: '#79c0ff' }
     },
+    nord: {
+      light: { bg: '#eceff4', fg: '#2e3440', k: '#4f689e', s: '#60794e', c: '#6c7a8a', n: '#8e5b85', t: '#3f6c9e', a: '#60794e' },
+      dark:  { bg: '#2e3440', fg: '#d8dee9', k: '#81a1c1', s: '#a3be8c', c: '#4c566a', n: '#b48ead', t: '#88c0d0', a: '#8fbcbb' }
+    },
     solarized: {
       light: { bg: '#fdf6e3', fg: '#657b83', k: '#859900', s: '#2aa198', c: '#93a1a1', n: '#d33682', t: '#268bd2', a: '#b58900' },
       dark:  { bg: '#002b36', fg: '#839496', k: '#859900', s: '#2aa198', c: '#586e75', n: '#d33682', t: '#268bd2', a: '#b58900' }
+    },
+    'one-dark': {
+      light: { bg: '#fafafa', fg: '#383a42', k: '#a626a4', s: '#50a14f', c: '#a0a1a7', n: '#986801', t: '#4078f2', a: '#e45649' },
+      dark:  { bg: '#282c34', fg: '#abb2bf', k: '#c678dd', s: '#98c379', c: '#5c6370', n: '#d19a66', t: '#61afef', a: '#e06c75' }
+    },
+    atlassian: {
+      light: { bg: '#f7f8f9', fg: '#172b4d', k: '#e5484d', s: '#216e4e', c: '#626f86', n: '#a54800', t: '#0c66e4', a: '#6e5dc6' },
+      dark:  { bg: '#161a1d', fg: '#b6c2cf', k: '#f15b50', s: '#4bce97', c: '#8c9bab', n: '#fec57b', t: '#85b8ff', a: '#b8acf6' }
     }
   };
   var GITHUB = {
@@ -42,7 +55,8 @@
   if (params.get('preset') === 'github') preset = 'github';
   if (['light', 'dark', 'auto'].indexOf(params.get('theme')) !== -1) themeMode = params.get('theme');
   var enableToc = params.get('toc') === '1' || params.get('toc') === 'true';
-  var codeScheme = params.get('code') === 'solarized' ? 'solarized' : 'github';
+  var VALID_CODES = ['github', 'nord', 'solarized', 'one-dark', 'atlassian'];
+  var codeScheme = VALID_CODES.indexOf(params.get('code')) !== -1 ? params.get('code') : 'default';
   var saved = null;
   try { saved = localStorage.getItem('mdv-theme'); } catch (e) {}
   if (saved === 'light' || saved === 'dark' || saved === 'auto') themeMode = saved;
@@ -96,7 +110,8 @@
   function apply() {
     var dark = effectiveDark();
     var p = palette(dark);
-    var c = CODE[codeScheme][dark ? 'dark' : 'light'];
+    var scheme = codeScheme === 'default' ? (dark ? 'nord' : 'github') : codeScheme;
+    var c = CODE[scheme][dark ? 'dark' : 'light'];
     var st = document.documentElement.style;
     document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
     document.documentElement.setAttribute('data-preset', preset);
