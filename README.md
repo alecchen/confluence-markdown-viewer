@@ -5,6 +5,7 @@ A static, reusable Markdown viewer for embedding in Confluence. Markdown stays t
 - No build step, no npm — plain static HTML/CSS/JS.
 - marked.js + highlight.js from **cdnjs only** (jsDelivr is blocked in the Confluence environment).
 - GitHub-flavored Markdown styling, GitHub-style tables.
+- Confluence-style heading links: hover a heading and click the chain icon to copy a link to that section.
 - Solarized code highlighting.
 - Inter for text, JetBrains Mono for code.
 - Confluence theme detection (via the embed script) with browser `prefers-color-scheme` fallback.
@@ -181,8 +182,9 @@ real viewer URL.
 - `?preset=github` — force the GitHub palette (A) for this doc.
 - `?theme=light|dark|auto` — force a theme for this load.
 - `?toc=1` — show a table of contents at the top of the doc. Every `h1`–`h6`
-  gets an anchor id; in the embed, TOC links ask the parent to scroll the
-  Confluence page to that heading.
+  gets a GitHub-style anchor id (via `marked-gfm-heading-id`); the heading's
+  chain icon (on hover) copies a link to that section. In the embed, TOC links
+  ask the parent to scroll the Confluence page to that heading.
 - `?code=github|nord|solarized|one-dark|atlassian` — code block colors. Default is
   `github` in light, `nord` in dark; an explicit scheme applies to both themes.
   E.g. `viewer.html?src=published/foo.md&code=nord`.
@@ -224,6 +226,7 @@ Re-run the archive command to update (it replaces file contents).
 ## Dependencies (cdnjs, pinned)
 
 - marked 12.0.2 — https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js
+- marked-gfm-heading-id 3.2.0 — https://cdnjs.cloudflare.com/ajax/libs/marked-gfm-heading-id/3.2.0/index.umd.min.js
 - highlight.js 11.9.0 — https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js
 - mermaid 10.9.1 (lazy, only when a ```` ```mermaid ```` block is present) — https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js
 - Inter + JetBrains Mono via Google Fonts (browser-side). If your network blocks

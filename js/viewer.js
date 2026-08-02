@@ -175,47 +175,58 @@
   });
 
   /* ---------- render ---------- */
-  function slugify(text) {
-    return String(text).toLowerCase().trim()
-      .replace(/[^\p{L}\p{N}\s-]/gu, '')
-      .replace(/[\s_]+/g, '-')
-      .replace(/-+/g, '-');
-  }
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
-  /* Assign an id to every h1-h6, then (if enabled) build a TOC that jumps to
-     them. In the embed the iframe cannot scroll, so jump links ask the parent
-     to scroll the Confluence page instead. */
+  /* Headings already carry GitHub-style ids (marked-gfm-heading-id assigns them
+     during parse). Give each one an anchor link whose click copies a URL to the
+     section, then build a TOC if enabled. In the embed the iframe cannot
+     scroll, so jump links ask the parent to scroll the Confluence page. */
+  function scrollToHeading(id) {
+    var target = document.getElementById(id);
+    if (!target) return;
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: 'mdv-scroll', top: Math.round(target.getBoundingClientRect().top) }, '*');
+    } else {
+      target.scrollIntoView();
+    }
+  }
+  function addHeadingAnchors() {
+    contentEl.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(function (h) {
+      if (!h.id || h.querySelector('.anchor-link')) return;
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'anchor-link';
+      b.title = 'Copy link to heading';
+      b.setAttribute('aria-label', 'Copy link to heading: ' + h.textContent);
+      b.innerHTML = LINK_ICON;
+      b.addEventListener('click', function () {
+        copyAnchorLink(b, h.id);
+      });
+      h.appendChild(b);
+    });
+  }
   function enhanceHeadings() {
     var headings = contentEl.querySelectorAll('h1, h2, h3, h4, h5, h6');
-    if (!headings.length) return;
-    var used = {}, items = [];
-    headings.forEach(function (h) {
-      var base = slugify(h.textContent) || 'section';
-      var n = used[base] || 0;
-      used[base] = n + 1;
-      var slug = base + (n ? '-' + n : '');
-      h.id = slug;
-      items.push('<li class="toc-l' + h.tagName[1] + '"><a href="#' + slug + '">' + escapeHtml(h.textContent) + '</a></li>');
-    });
-    if (!enableToc) return;
-    contentEl.insertAdjacentHTML('afterbegin',
-      '<details class="toc" open><summary>Contents</summary><ul>' + items.join('') + '</ul></details>');
-    contentEl.querySelectorAll('.toc a').forEach(function (a) {
-      a.addEventListener('click', function (e) {
-        e.preventDefault();
-        var target = document.getElementById(a.getAttribute('href').slice(1));
-        if (!target) return;
-        if (window.parent !== window) {
-          window.parent.postMessage({ type: 'mdv-scroll', top: Math.round(target.getBoundingClientRect().top) }, '*');
-        } else {
-          target.scrollIntoView();
-        }
+    if (enableToc && headings.length) {
+      var items = [];
+      headings.forEach(function (h) {
+        items.push('<li class="toc-l' + h.tagName[1] + '"><a href="#' + h.id + '">' + escapeHtml(h.textContent) + '</a></li>');
       });
-    });
+      contentEl.insertAdjacentHTML('afterbegin',
+        '<details class="toc" open><summary>Contents</summary><ul>' + items.join('') + '</ul></details>');
+      contentEl.querySelectorAll('.toc a').forEach(function (a) {
+        a.addEventListener('click', function (e) {
+          e.preventDefault();
+          scrollToHeading(a.getAttribute('href').slice(1));
+        });
+      });
+    }
+    addHeadingAnchors(headings);
+    var hashId = (location.hash || '').slice(1);
+    if (hashId) scrollToHeading(hashId);
   }
 
   /* ---------- mermaid diagrams (lazy-loaded from cdnjs) ---------- */
@@ -300,12 +311,7 @@
     } catch (e) { return false; }
   }
 
-  function copyText(text, btn) {
-    function done(ok) {
-      var orig = btn.textContent;
-      btn.textContent = ok ? 'Copied' : 'Copy failed';
-      setTimeout(function () { btn.textContent = orig; }, 1500);
-    }
+  function writeClipboard(text, done) {
     if (navigator.clipboard && window.isSecureContext) {
       navigator.clipboard.writeText(text).then(
         function () { done(true); },
@@ -313,6 +319,25 @@
     } else {
       done(legacyCopy(text));
     }
+  }
+  function copyText(text, btn) {
+    writeClipboard(text, function (ok) {
+      var orig = btn.textContent;
+      btn.textContent = ok ? 'Copied' : 'Copy failed';
+      setTimeout(function () { btn.textContent = orig; }, 1500);
+    });
+  }
+  var LINK_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
+  var CHECK_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>';
+  /* Copy a URL pointing at a heading (the viewer URL + #id), swapping the chain
+     icon for a checkmark as feedback. */
+  function copyAnchorLink(btn, id) {
+    writeClipboard(location.href.split('#')[0] + '#' + id, function (ok) {
+      var inner = btn.innerHTML;
+      btn.innerHTML = ok ? CHECK_ICON : LINK_ICON;
+      btn.title = ok ? 'Link copied' : 'Copy failed';
+      setTimeout(function () { btn.innerHTML = inner; }, 1500);
+    });
   }
 
   /* ---------- relative asset paths ---------- */
@@ -354,6 +379,12 @@
   }
 
   marked.setOptions({ gfm: true, breaks: false, pedantic: false });
+  /* GitHub-style heading ids come from marked-gfm-heading-id (cdnjs). If it
+     ever fails to load, marked still emits its own ids, so anchors and the TOC
+     keep working. */
+  if (window.markedGfmHeadingId && typeof window.markedGfmHeadingId.gfmHeadingId === 'function') {
+    marked.use(window.markedGfmHeadingId.gfmHeadingId());
+  }
 
   var src = params.get('src');
   if (!src) {

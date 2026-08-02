@@ -36,6 +36,7 @@ body {
 
 .markdown-body h1, .markdown-body h2, .markdown-body h3,
 .markdown-body h4, .markdown-body h5, .markdown-body h6 {
+  position: relative;
   margin: 24px 0 16px;
   font-weight: 600;
   line-height: 1.25;
@@ -155,6 +156,50 @@ body {
 .markdown-body .toc .toc-l6 { padding-left: 5em; }
 .markdown-body .toc a { color: var(--link); text-decoration: none; }
 .markdown-body .toc a:hover { text-decoration: underline; }
+
+/* ---------- heading anchor (copy-link) ---------- */
+.markdown-body .anchor-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  width: 0;
+  padding: 0;
+  margin-left: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--fg);
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.markdown-body h5 .anchor-link,
+.markdown-body h6 .anchor-link { color: var(--muted); }
+.markdown-body .anchor-link:hover {
+  background: var(--table-header);
+  border-radius: 4px;
+}
+.markdown-body h1:hover .anchor-link,
+.markdown-body h2:hover .anchor-link,
+.markdown-body h3:hover .anchor-link,
+.markdown-body h4:hover .anchor-link,
+.markdown-body h5:hover .anchor-link,
+.markdown-body h6:hover .anchor-link,
+.markdown-body .anchor-link:focus-visible {
+  width: 18px;
+  padding: 2px;
+  margin-left: 8px;
+  opacity: 1;
+}
+@media (hover: none) {
+  .markdown-body .anchor-link {
+    width: 18px;
+    padding: 2px;
+    margin-left: 8px;
+    opacity: 1;
+  }
+}
 
 /* ---------- copy-code button ---------- */
 .copy-btn {
