@@ -62,3 +62,14 @@ test('embedded: a parent-sent page URL wins over an origin-only referrer', async
   await h.tick(0);
   assert.equal(h.clipboard.text, 'https://confluence.example/pages/viewpage.action?pageId=42#hello-world');
 });
+
+test('TOC links stay in-frame while content links open in a new tab', async () => {
+  const h = await boot({
+    url: 'http://localhost/viewer/viewer.html?src=published/test.md&toc=1',
+    markdown: '# A\n[ext](https://example.com)\n',
+  });
+  const tocLink = h.d.querySelector('#content .toc a');
+  assert.equal(tocLink.hasAttribute('target'), false, 'TOC links do not get target=_blank');
+  const contentLink = h.d.querySelector('#content a[href^="http"]');
+  assert.equal(contentLink.getAttribute('target'), '_blank');
+});
