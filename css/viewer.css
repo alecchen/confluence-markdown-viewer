@@ -117,6 +117,7 @@ html.mdv-embedded .markdown-body { padding-bottom: 0; }
 }
 .markdown-body pre code {
   padding: 0;
+  font-size: 100%;   /* undo the 85% so pre code does not compound (matches GitHub) */
   background: transparent !important;
   color: inherit;
   border-radius: 0;
