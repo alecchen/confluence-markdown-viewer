@@ -31,6 +31,10 @@ body {
   width: 100%;
   padding: 24px 24px 72px;
 }
+/* Inside the Confluence iframe there is no internal scrollbar and the iframe is
+   sized to the content box, so the bottom padding would render as dead space
+   above the page's comment area. Drop it in the embed. */
+html.mdv-embedded .markdown-body { padding-bottom: 0; }
 .markdown-body > :first-child { margin-top: 0; }
 .markdown-body > :last-child { margin-bottom: 0; }
 

@@ -95,3 +95,10 @@ test('a deep link re-scrolls as the layout settles', async () => {
   const scrolls = h.sent.filter((s) => s.data.type === 'mdv-scroll');
   assert.ok(scrolls.length >= 2, 'retries re-post mdv-scroll as layout settles');
 });
+
+test('embedded adds the mdv-embedded class; standalone does not', async () => {
+  const embedded = await boot({ embedded: true });
+  assert.ok(embedded.d.documentElement.classList.contains('mdv-embedded'));
+  const standalone = await boot();
+  assert.ok(!standalone.d.documentElement.classList.contains('mdv-embedded'));
+});

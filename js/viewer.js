@@ -74,6 +74,9 @@
   var mq = window.matchMedia('(prefers-color-scheme: dark)');
   var contentEl = document.getElementById('content');
   var toggleEl = document.getElementById('theme-toggle');
+  /* In the embed the iframe is sized to the content box, so the doc's bottom
+     padding would show as empty space above the page's comment area. */
+  if (window.parent !== window) document.documentElement.classList.add('mdv-embedded');
 
   /* ---------- color helpers ---------- */
   function rgb(hex) {
