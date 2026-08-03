@@ -98,6 +98,10 @@ style rides in the alt text, where `|50` means pixels and `|50%` means percent.
 The size is emitted as an HTML `width` attribute, and the CSS `max-width: 100%`
 cap on images still applies.
 
+To see the same sizes in VS Code's built-in markdown preview while writing
+drafts, install the bundled `vscode-image-size/` extension (see its README). A
+test keeps the two implementations' output identical.
+
 ## Embed in Confluence
 
 Paste this into the HTML macro on the target page (change the `?src=` path per doc):

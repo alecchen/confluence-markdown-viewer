@@ -1,0 +1,23 @@
+{
+  "name": "mdv-image-size",
+  "displayName": "Markdown Image Size (Confluence viewer)",
+  "description": "Adds the Confluence viewer's image size syntax (=50%, |50) to VS Code's built-in markdown preview.",
+  "version": "0.0.1",
+  "publisher": "alecchen",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alecchen/confluence-markdown-viewer"
+  },
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "markdown.markdownItPlugins": true
+  }
+}
