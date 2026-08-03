@@ -87,3 +87,11 @@ test('mdv-parent-url from a different origin is ignored', async () => {
   await h.tick(0);
   assert.equal(h.clipboard.text, 'https://confluence.example/pages/1#target');
 });
+
+test('a deep link re-scrolls as the layout settles', async () => {
+  const h = await boot({ embedded: true, referrer: 'https://confluence.example/pages/1', markdown: '## Target\n' });
+  send(h, 'https://confluence.example', { type: 'mdv-hash', id: 'target' });
+  await h.tick(900);
+  const scrolls = h.sent.filter((s) => s.data.type === 'mdv-scroll');
+  assert.ok(scrolls.length >= 2, 'retries re-post mdv-scroll as layout settles');
+});

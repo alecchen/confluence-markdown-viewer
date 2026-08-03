@@ -185,7 +185,7 @@
     if (d.type === 'mdv-hash') {
       /* Deep link: the parent relays its #hash (the heading lives inside the
          iframe). Scroll now if rendered, else apply once render() completes. */
-      if (rendered) scrollToHeading(d.id);
+      if (rendered) startDeepLink(d.id);
       else pendingHash = d.id;
     }
     if (d.type === 'mdv-parent-url' && typeof d.url === 'string' && /^https?:/.test(d.url)) {
@@ -212,6 +212,28 @@
     } else {
       target.scrollIntoView();
     }
+  }
+  /* Deep links (page opened with a #heading) re-apply the scroll as the layout
+     settles: images, web fonts and mermaid all render after render() and move
+     headings, so a one-shot scroll can land short. Retry every 400ms for ~6s;
+     the parent scroll math converges on the same absolute target each pass. */
+  var deepLinkId = null;
+  var deepLinkTries = 0;
+  function startDeepLink(id) {
+    if (!id) return;
+    deepLinkId = id;
+    deepLinkTries = 0;
+    scrollToHeading(id);
+    scheduleDeepLinkScroll();
+  }
+  function scheduleDeepLinkScroll() {
+    if (!deepLinkId || deepLinkTries >= 15) { deepLinkId = null; return; }
+    clearTimeout(scheduleDeepLinkScroll._t);
+    scheduleDeepLinkScroll._t = setTimeout(function () {
+      deepLinkTries++;
+      scrollToHeading(deepLinkId);
+      scheduleDeepLinkScroll();
+    }, 400);
   }
   function addHeadingAnchors() {
     contentEl.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(function (h) {
@@ -246,11 +268,11 @@
     }
     addHeadingAnchors(headings);
     var hashId = (location.hash || '').slice(1);
-    if (hashId) scrollToHeading(hashId);
+    if (hashId) startDeepLink(hashId);
     if (pendingHash) {
       var ph = pendingHash;
       pendingHash = null;
-      scrollToHeading(ph);
+      startDeepLink(ph);
     }
   }
 
