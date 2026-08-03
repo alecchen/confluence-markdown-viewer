@@ -53,9 +53,10 @@ html.mdv-embedded .markdown-body { padding-bottom: 0; }
 
 .markdown-body p, .markdown-body ul, .markdown-body ol,
 .markdown-body blockquote, .markdown-body pre,
-.markdown-body table, .markdown-body hr, .markdown-body dl {
-  margin: 16px 0;
+.markdown-body table, .markdown-body dl {
+  margin: 0 0 16px;   /* GitHub: top 0, bottom 16px (16px gaps, not 32px) */
 }
+.markdown-body hr { margin: 24px 0; }
 
 .markdown-body a { color: var(--link); text-decoration: none; }
 .markdown-body a:hover { text-decoration: underline; }
