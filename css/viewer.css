@@ -257,12 +257,13 @@ html.mdv-embedded .markdown-body { padding-bottom: 0; }
   display: none;
   align-items: center;
   justify-content: center;
+  padding: 20px 16px;
   background: color-mix(in srgb, var(--bg) 90%, transparent);
 }
 .mdv-lightbox.open { display: flex; }
 .mdv-lightbox-img {
-  max-width: 92vw;
-  max-height: 86vh;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
 }

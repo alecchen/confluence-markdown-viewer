@@ -195,6 +195,15 @@
       /* Full embedding-page URL, in case the referrer is trimmed to the origin. */
       parentPageUrl = d.url.split('#')[0];
     }
+    if (d.type === 'mdv-viewport' && typeof d.top === 'number' && typeof d.height === 'number') {
+      /* The parent relays which slice of the content-height iframe is visible
+         (top px into the iframe, height in px) so the fixed lightbox can pin
+         itself to the on-screen area instead of the whole document. Standalone
+         never receives this and keeps the viewport default. */
+      viewportTop = d.top;
+      viewportHeight = d.height;
+      if (lightboxOpen) positionLightbox();
+    }
   });
 
   /* ---------- render ---------- */
@@ -395,11 +404,14 @@
 
   /* ---------- image lightbox ---------- */
   /* Images render as bare <img>, so a click does nothing by default. This opens
-     a full-viewport overlay showing the image at natural resolution, closed by
-     a click anywhere or Esc. The "Open original" link opens the raw file in a
-     new tab - the escape hatch for low-res sources. */
+     an overlay showing the image at natural resolution - full-viewport
+     standalone, pinned to the parent-reported visible slice in the embed -
+     closed by a click anywhere or Esc. The "Open original" link opens the raw
+     file in a new tab - the escape hatch for low-res sources. */
   var lightboxEl = null;
   var lightboxOpen = false;
+  var viewportTop = null;       /* visible slice of the iframe, from the parent */
+  var viewportHeight = null;
 
   function openLightbox(img) {
     if (!lightboxEl) {
@@ -430,6 +442,12 @@
     lightboxEl.classList.add('open');
     document.body.classList.add('mdv-lightbox-open');
     lightboxOpen = true;
+    if (window.parent !== window) {
+      /* Ask the parent for the current visible slice so the overlay centers in
+         what is actually on screen, not the full document. */
+      window.parent.postMessage({ type: 'mdv-viewport-request' }, '*');
+    }
+    positionLightbox();
   }
 
   function closeLightbox() {
@@ -438,6 +456,22 @@
     lightboxEl.querySelector('.mdv-lightbox-img').src = '';
     lightboxEl.classList.remove('open');
     document.body.classList.remove('mdv-lightbox-open');
+    lightboxEl.style.top = '';
+    lightboxEl.style.height = '';
+  }
+
+  /* Pin the overlay to the parent-reported visible slice when embedded; reset to
+     the default viewport fill otherwise (standalone, or before the first
+     mdv-viewport arrives). */
+  function positionLightbox() {
+    if (!lightboxEl) return;
+    if (window.parent !== window && viewportHeight !== null) {
+      lightboxEl.style.top = viewportTop + 'px';
+      lightboxEl.style.height = viewportHeight + 'px';
+    } else {
+      lightboxEl.style.top = '';
+      lightboxEl.style.height = '';
+    }
   }
 
   document.addEventListener('keydown', function (e) {
