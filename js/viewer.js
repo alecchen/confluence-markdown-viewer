@@ -389,6 +389,18 @@
     });
   }
 
+  /* Content links open in a new tab: inside the Confluence iframe, navigating
+     the frame would lose the page. Fragment links (#...) stay in-frame so the
+     viewer can scroll to them (TOC links are fragment links). */
+  function setLinkTargets() {
+    contentEl.querySelectorAll('a[href]').forEach(function (a) {
+      var href = a.getAttribute('href');
+      if (!href || href.charAt(0) === '#') return;
+      a.setAttribute('target', '_blank');
+      a.setAttribute('rel', 'noopener');
+    });
+  }
+
   function render(text) {
     contentEl.innerHTML = marked.parse(text);
     rewriteAssetPaths();
@@ -398,6 +410,7 @@
     });
     collectMermaid();
     enhanceHeadings();
+    setLinkTargets();
     addCopyButtons();
     rendered = true;
     apply();

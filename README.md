@@ -209,6 +209,10 @@ heading id as a hash, and the script relays that hash to the viewer so the page 
 scrolled to the heading. The script also sends this page's full URL to the viewer,
 since a browser's referrer is often trimmed to just the origin.
 
+Content links in the markdown (external or relative) open in a new tab, so clicking
+one never navigates the embedded iframe away from the Confluence page. Fragment links
+(`#...`, including TOC entries) stay in-frame so the viewer can scroll to them.
+
 ## Theme model
 
 - **Default (B — Confluence):** the embed script reads Confluence's computed

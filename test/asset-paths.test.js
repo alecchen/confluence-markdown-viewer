@@ -40,3 +40,16 @@ test('no rewrite when the markdown sits at the viewer root', async () => {
   const h = await boot({ url: 'http://localhost/viewer/viewer.html?src=test.md', markdown: '![a](x.png)\n' });
   assert.equal(h.d.querySelector('#content img').getAttribute('src'), 'x.png');
 });
+
+test('content links open in a new tab; fragment links stay in-frame', async () => {
+  const h = await boot({
+    url: 'http://localhost/viewer/viewer.html?src=published/foo.md',
+    markdown: '[ext](https://example.com) [rel](other.md) [hash](#sec)\n',
+  });
+  const links = h.d.querySelectorAll('#content a');
+  assert.equal(links[0].getAttribute('target'), '_blank');
+  assert.equal(links[0].getAttribute('rel'), 'noopener');
+  assert.equal(links[1].getAttribute('target'), '_blank');
+  assert.equal(links[1].getAttribute('rel'), 'noopener');
+  assert.equal(links[2].hasAttribute('target'), false);
+});
