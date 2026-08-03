@@ -191,6 +191,11 @@ Paste this into the HTML macro on the target page (change the `?src=` path per d
 </script>
 ```
 
+Note: in the HTML macro, every `&` inside the iframe `src` must be written as
+`&amp;` (e.g. `viewer.html?src=published/foo.md&amp;toc=1`). A bare `&` makes
+Confluence's parser warn `EntityRef: expecting ';'`; the browser decodes `&amp;`
+back to `&` when it loads the URL.
+
 The `<script>` is optional but recommended: it matches the rendered doc to the
 Confluence page theme (background color, text color, link color), keeps the iframe
 exactly as tall as its content (no nested scrollbars), and **re-syncs live when
