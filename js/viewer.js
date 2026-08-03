@@ -393,6 +393,65 @@
     });
   }
 
+  /* ---------- image lightbox ---------- */
+  /* Images render as bare <img>, so a click does nothing by default. This opens
+     a full-viewport overlay showing the image at natural resolution, closed by
+     a click anywhere or Esc. The "Open original" link opens the raw file in a
+     new tab - the escape hatch for low-res sources. */
+  var lightboxEl = null;
+  var lightboxOpen = false;
+
+  function openLightbox(img) {
+    if (!lightboxEl) {
+      lightboxEl = document.createElement('div');
+      lightboxEl.className = 'mdv-lightbox';
+      lightboxEl.setAttribute('role', 'dialog');
+      lightboxEl.setAttribute('aria-modal', 'true');
+      var boxImg = document.createElement('img');
+      boxImg.className = 'mdv-lightbox-img';
+      var openLink = document.createElement('a');
+      openLink.className = 'mdv-lightbox-link';
+      openLink.textContent = 'Open original';
+      openLink.target = '_blank';
+      openLink.rel = 'noopener';
+      /* the link's click must not bubble up to the overlay's close handler */
+      openLink.addEventListener('click', function (e) { e.stopPropagation(); });
+      lightboxEl.appendChild(boxImg);
+      lightboxEl.appendChild(openLink);
+      lightboxEl.addEventListener('click', closeLightbox);
+      document.body.appendChild(lightboxEl);
+    }
+    var src = img.currentSrc || img.src;
+    var box = lightboxEl.querySelector('.mdv-lightbox-img');
+    box.src = src;
+    box.alt = img.alt || '';
+    lightboxEl.querySelector('.mdv-lightbox-link').href = src;
+    lightboxEl.setAttribute('aria-label', 'Image: ' + (img.alt || src));
+    lightboxEl.classList.add('open');
+    document.body.classList.add('mdv-lightbox-open');
+    lightboxOpen = true;
+  }
+
+  function closeLightbox() {
+    if (!lightboxOpen) return;
+    lightboxOpen = false;
+    lightboxEl.querySelector('.mdv-lightbox-img').src = '';
+    lightboxEl.classList.remove('open');
+    document.body.classList.remove('mdv-lightbox-open');
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' || e.key === 'Esc') closeLightbox();
+  });
+
+  function enableImageZoom() {
+    contentEl.querySelectorAll('img').forEach(function (img) {
+      /* linked images keep the link's own behavior (matches GitHub) */
+      if (img.closest('a')) return;
+      img.addEventListener('click', function () { openLightbox(img); });
+    });
+  }
+
   /* ---------- relative asset paths ---------- */
   /* Images/attachments referenced with relative paths in the markdown resolve
      against the markdown file's directory, not the viewer page. */
@@ -436,6 +495,7 @@
     collectMermaid();
     enhanceHeadings();
     setLinkTargets();
+    enableImageZoom();
     addCopyButtons();
     rendered = true;
     apply();
