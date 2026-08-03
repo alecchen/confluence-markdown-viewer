@@ -4,11 +4,18 @@
 
   /* ---------- parent origin: derived, no hardcoded hosts ---------- */
   /* The embedding page's origin comes from document.referrer, so the viewer
-     accepts theme messages from whatever page iframes it (your Confluence). */
+     accepts theme messages from whatever page iframes it (your Confluence).
+     The full referrer URL also gives the "copy link to heading" button its
+     target: in the embed it copies the Confluence page + #heading id (the
+     heading lives inside the iframe, so the embed script relays the hash). */
   var parentOrigin = null;
+  var parentPageUrl = '';
   try {
     var ref = new URL(document.referrer);
-    if (ref.protocol === 'https:' || ref.protocol === 'http:') parentOrigin = ref.origin;
+    if (ref.protocol === 'https:' || ref.protocol === 'http:') {
+      parentOrigin = ref.origin;
+      parentPageUrl = ref.href.split('#')[0];
+    }
   } catch (e) {}
 
   /* Code block palettes. Default: github for light, nord for dark.
@@ -50,6 +57,8 @@
   var themeMode = 'auto';        /* light | dark | auto (manual override) */
   var preset = 'confluence';     /* confluence (B) | github (A) */
   var conf = null;               /* {theme,bg,fg,link} from the parent page */
+  var pendingHash = null;        /* heading id to scroll to once the doc renders */
+  var rendered = false;          /* true once the first render() completes */
 
   var params = new URLSearchParams(location.search);
   if (params.get('preset') === 'github') preset = 'github';
@@ -172,6 +181,12 @@
       conf = { theme: d.theme, bg: d.bg, fg: d.fg, link: d.link };
       apply();
     }
+    if (d.type === 'mdv-hash') {
+      /* Deep link: the parent relays its #hash (the heading lives inside the
+         iframe). Scroll now if rendered, else apply once render() completes. */
+      if (rendered) scrollToHeading(d.id);
+      else pendingHash = d.id;
+    }
   });
 
   /* ---------- render ---------- */
@@ -227,6 +242,11 @@
     addHeadingAnchors(headings);
     var hashId = (location.hash || '').slice(1);
     if (hashId) scrollToHeading(hashId);
+    if (pendingHash) {
+      var ph = pendingHash;
+      pendingHash = null;
+      scrollToHeading(ph);
+    }
   }
 
   /* ---------- mermaid diagrams (lazy-loaded from cdnjs) ---------- */
@@ -329,10 +349,13 @@
   }
   var LINK_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
   var CHECK_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>';
-  /* Copy a URL pointing at a heading (the viewer URL + #id), swapping the chain
-     icon for a checkmark as feedback. */
+  /* Copy a URL pointing at a heading. In the embed the target is the Confluence
+     page + #heading id (parentPageUrl), so pasting it opens the doc inside
+     Confluence rather than the bare viewer. Standalone it falls back to the
+     viewer URL. The chain icon swaps for a checkmark as feedback. */
   function copyAnchorLink(btn, id) {
-    writeClipboard(location.href.split('#')[0] + '#' + id, function (ok) {
+    var base = parentPageUrl || location.href.split('#')[0];
+    writeClipboard(base + '#' + id, function (ok) {
       var inner = btn.innerHTML;
       btn.innerHTML = ok ? CHECK_ICON : LINK_ICON;
       btn.title = ok ? 'Link copied' : 'Copy failed';
@@ -371,6 +394,7 @@
     collectMermaid();
     enhanceHeadings();
     addCopyButtons();
+    rendered = true;
     apply();
   }
   function fail(msg) {

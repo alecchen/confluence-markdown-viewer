@@ -50,3 +50,31 @@ test('height is reported to the parent only when embedded', async () => {
   await standalone.tick(80);
   assert.equal(standalone.sent.filter((s) => s.data.type === 'mdv-height').length, 0);
 });
+
+test('mdv-hash from the parent scrolls to the heading (post-render)', async () => {
+  const h = await boot({ embedded: true, referrer: 'https://confluence.example/pages/1', markdown: '## Target\n' });
+  send(h, 'https://confluence.example', { type: 'mdv-hash', id: 'target' });
+  const scrolls = h.sent.filter((s) => s.data.type === 'mdv-scroll');
+  assert.equal(scrolls.length, 1);
+  assert.equal(typeof scrolls[0].data.top, 'number');
+});
+
+test('mdv-hash before render is applied once the doc renders', async () => {
+  let resolveFetch;
+  const h = await boot({
+    embedded: true,
+    referrer: 'https://confluence.example/pages/1',
+    fetchImpl: () => new Promise((res) => { resolveFetch = res; }),
+  });
+  send(h, 'https://confluence.example', { type: 'mdv-hash', id: 'late' });
+  assert.equal(h.sent.filter((s) => s.data.type === 'mdv-scroll').length, 0, 'no scroll before render');
+  resolveFetch({ ok: true, status: 200, text: async () => '## Late\n' });
+  await h.tick(0);
+  assert.equal(h.sent.filter((s) => s.data.type === 'mdv-scroll').length, 1);
+});
+
+test('mdv-hash from a different origin is ignored', async () => {
+  const h = await boot({ embedded: true, referrer: 'https://confluence.example/pages/1', markdown: '## Target\n' });
+  send(h, 'https://evil.example', { type: 'mdv-hash', id: 'target' });
+  assert.equal(h.sent.filter((s) => s.data.type === 'mdv-scroll').length, 0);
+});

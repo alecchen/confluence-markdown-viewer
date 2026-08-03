@@ -170,6 +170,16 @@ Paste this into the HTML macro on the target page (change the `?src=` path per d
       window.scrollTo(0, window.pageYOffset + r.top + d.top - 80);
     }
   });
+  /* Heading deep links: the copied link is <this page>#<heading id>. The heading
+     lives inside the iframe, so relay the hash to the viewer, which scrolls the
+     iframe and asks us to scroll the page to it. */
+  function relayHash() {
+    var h = (location.hash || '').slice(1);
+    if (h) f.contentWindow.postMessage({ type: 'mdv-hash', id: h }, childOrigin);
+  }
+  relayHash();
+  window.addEventListener('hashchange', relayHash);
+  f.addEventListener('load', relayHash);
 })();
 </script>
 ```
@@ -179,8 +189,12 @@ Confluence page theme (background color, text color, link color), keeps the ifra
 exactly as tall as its content (no nested scrollbars), and **re-syncs live when
 Confluence toggles between light and dark** — only pushing an update when the page
 background actually changes. Origins are derived from the iframe URL and the
-referrer, so no hostnames need configuring — only the `src` above must point at your
+referrer, so no hostnames need configuring - only the `src` above must point at your
 real viewer URL.
+
+It also makes heading deep links work: copied heading links target this page with the
+heading id as a hash, and the script relays that hash to the viewer so the page opens
+scrolled to the heading.
 
 ## Theme model
 
@@ -206,8 +220,11 @@ real viewer URL.
 - `?theme=light|dark|auto` — force a theme for this load.
 - `?toc=1` — show a table of contents at the top of the doc. Every `h1`–`h6`
   gets a GitHub-style anchor id (via `marked-gfm-heading-id`); the heading's
-  chain icon (on hover) copies a link to that section. In the embed, TOC links
-  ask the parent to scroll the Confluence page to that heading.
+  chain icon (on hover) copies a link to that section. Standalone, the copied
+  link points at the viewer; in the embed it points at the Confluence page plus
+  the heading id, and the embed script relays the hash so the page opens scrolled
+  to the heading. In the embed, TOC links ask the parent to scroll the Confluence
+  page to that heading.
 - `?code=github|nord|solarized|one-dark|atlassian` — code block colors. Default is
   `github` in light, `nord` in dark; an explicit scheme applies to both themes.
   E.g. `viewer.html?src=published/foo.md&code=nord`.

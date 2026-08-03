@@ -39,3 +39,14 @@ test('no TOC without ?toc=1', async () => {
   const h = await boot({ markdown: '# A\n' });
   assert.equal(h.d.querySelector('#content .toc'), null);
 });
+
+test('embedded: the chain icon copies a Confluence URL, not the viewer URL', async () => {
+  const h = await boot({
+    referrer: 'https://confluence.example/pages/viewpage.action?pageId=42',
+    markdown: '## Hello World\n',
+  });
+  const btn = h.d.querySelector('#content h2 .anchor-link');
+  btn.click();
+  await h.tick(0);
+  assert.equal(h.clipboard.text, 'https://confluence.example/pages/viewpage.action?pageId=42#hello-world');
+});
