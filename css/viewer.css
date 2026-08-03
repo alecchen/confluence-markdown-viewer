@@ -18,9 +18,9 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
   font-size: 16px;
-  line-height: 1.6;
+  line-height: 1.5;
   word-wrap: break-word;
   -webkit-font-smoothing: antialiased;
   transition: background-color .15s ease, color .15s ease;
@@ -96,7 +96,7 @@ html.mdv-embedded .markdown-body { padding-bottom: 0; }
 :root[data-theme="dark"] .markdown-body th { background: #222830; }
 
 .markdown-body code, .markdown-body pre {
-  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   font-size: 85%;
 }
 .markdown-body code {
