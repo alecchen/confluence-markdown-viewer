@@ -1,0 +1,15 @@
+{
+  "name": "confluence-markdown-viewer",
+  "private": true,
+  "description": "Dev-only test tooling. The deployed viewer stays a static site with no build step.",
+  "scripts": {
+    "test": "node --test \"test/*.test.js\""
+  },
+  "devDependencies": {
+    "highlight.js": "11.9.0",
+    "jsdom": "^26.0.0",
+    "marked": "12.0.2",
+    "marked-gfm-heading-id": "3.2.0",
+    "mermaid": "10.9.1"
+  }
+}

@@ -386,6 +386,33 @@
     marked.use(window.markedGfmHeadingId.gfmHeadingId());
   }
 
+  /* ---------- image size syntax ---------- */
+  /* CommonMark has no image-width syntax, so the viewer adds two extensions:
+       ![alt](img.png =50%)   size after the destination (space before =)
+       ![alt|50](img.png)     Obsidian style, size in the alt text
+     |50 means 50px, |50% means 50%. Plain images fall through to marked. */
+  marked.use({
+    extensions: [{
+      name: 'mdvImgSize',
+      level: 'inline',
+      start: function (src) { return src.indexOf('!['); },
+      tokenizer: function (src) {
+        var m = /^!\[([^\]]*?)\|([0-9]+(?:\.[0-9]+)?)(%?)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/.exec(src);
+        if (m) {
+          return { type: 'mdvImgSize', raw: m[0], text: m[1], href: m[4], width: m[2] + (m[3] || 'px'), title: m[5] };
+        }
+        m = /^!\[([^\]]*)\]\(([^)\s]+)\s+=\s*([^)\s]+)\)/.exec(src);
+        if (!m) return;
+        return { type: 'mdvImgSize', raw: m[0], text: m[1], href: m[2], width: m[3] };
+      },
+      renderer: function (tok) {
+        var out = '<img src="' + escapeHtml(tok.href) + '" alt="' + escapeHtml(tok.text) + '"';
+        if (tok.title) out += ' title="' + escapeHtml(tok.title) + '"';
+        return out + ' width="' + escapeHtml(tok.width) + '">';
+      }
+    }]
+  });
+
   var src = params.get('src');
   if (!src) {
     fail('Usage: viewer.html?src=published/foo.md');

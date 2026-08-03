@@ -1,8 +1,10 @@
 # Confluence Markdown Viewer
 
+[![CI](https://github.com/alecchen/confluence-markdown-viewer/actions/workflows/ci.yml/badge.svg)](https://github.com/alecchen/confluence-markdown-viewer/actions/workflows/ci.yml)
+
 A static, reusable Markdown viewer for embedding in Confluence. Markdown stays the single source of truth in Git; this repo is only the renderer.
 
-- No build step, no npm — plain static HTML/CSS/JS.
+- No build step — the served site is plain static HTML/CSS/JS (dev-only test tooling lives in `package.json`, never deployed).
 - marked.js + highlight.js from **cdnjs only** (jsDelivr is blocked in the Confluence environment).
 - GitHub-flavored Markdown styling, GitHub-style tables.
 - Confluence-style heading links: hover a heading and click the chain icon to copy a link to that section.
@@ -78,6 +80,23 @@ relative paths — the viewer resolves them against the markdown file's director
 With `?src=published/foo.md`, `images/architecture.png` resolves to
 `published/images/architecture.png`. Only the extensions listed in the publish
 hook are copied to the served tree; add others to the `case` list if you need them.
+
+### Sizing images
+
+CommonMark has no way to set an image's size, so the viewer adds two
+extensions:
+
+| Syntax | Result |
+| --- | --- |
+| `![alt](img.png =50%)` | 50% of the content column |
+| `![alt](img.png =100px)` | exactly 100px wide |
+| `![alt\|50](img.png)` | 50px wide (Obsidian style) |
+| `![alt\|50%](img.png)` | 50% of the content column |
+
+`=width` goes after the destination (keep a space before `=`). The Obsidian
+style rides in the alt text, where `|50` means pixels and `|50%` means percent.
+The size is emitted as an HTML `width` attribute, and the CSS `max-width: 100%`
+cap on images still applies.
 
 ## Embed in Confluence
 
@@ -231,3 +250,22 @@ Re-run the archive command to update (it replaces file contents).
 - mermaid 10.9.1 (lazy, only when a ```` ```mermaid ```` block is present) — https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js
 - Inter + JetBrains Mono via Google Fonts (browser-side). If your network blocks
   Google Fonts, self-host the woff2 files under `css/fonts/` and update `viewer.html`.
+
+## Testing
+
+The suite loads the real `js/viewer.js` into jsdom and asserts the rendered
+behavior against the features documented above. It is dev-only: nothing here is
+deployed.
+
+```sh
+npm install        # dev-only; installs jsdom + the pinned cdnjs libs
+npm test           # node:test — 40+ assertions across the README's features
+```
+
+- One test file per feature area in `test/` (`markdown-rendering`, `headings-toc`,
+  `asset-paths`, `image-sizes`, `code-copy-mermaid`, `themes`, `messaging`, `params`).
+- The libs under test come from `package.json` pinned to the exact cdnjs versions;
+  `alignment.test.js` fails if the two drift apart.
+- Not covered here: real mermaid SVG rendering, real clipboard writes, and the
+  live iframe↔parent messaging between two real documents (browser-only). The
+  publish hook and `.htaccess` are deployment concerns, not viewer behavior.
