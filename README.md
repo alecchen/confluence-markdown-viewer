@@ -180,6 +180,13 @@ Paste this into the HTML macro on the target page (change the `?src=` path per d
   relayHash();
   window.addEventListener('hashchange', relayHash);
   f.addEventListener('load', relayHash);
+  /* The viewer builds heading copy-links from this page's URL. A browser's
+     referrer is often trimmed to the origin, so send the full URL explicitly. */
+  function sendPageUrl() {
+    f.contentWindow.postMessage({ type: 'mdv-parent-url', url: location.href }, childOrigin);
+  }
+  sendPageUrl();
+  f.addEventListener('load', sendPageUrl);
 })();
 </script>
 ```
@@ -194,7 +201,8 @@ real viewer URL.
 
 It also makes heading deep links work: copied heading links target this page with the
 heading id as a hash, and the script relays that hash to the viewer so the page opens
-scrolled to the heading.
+scrolled to the heading. The script also sends this page's full URL to the viewer,
+since a browser's referrer is often trimmed to just the origin.
 
 ## Theme model
 

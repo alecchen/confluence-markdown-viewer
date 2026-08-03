@@ -78,3 +78,12 @@ test('mdv-hash from a different origin is ignored', async () => {
   send(h, 'https://evil.example', { type: 'mdv-hash', id: 'target' });
   assert.equal(h.sent.filter((s) => s.data.type === 'mdv-scroll').length, 0);
 });
+
+test('mdv-parent-url from a different origin is ignored', async () => {
+  const h = await boot({ referrer: 'https://confluence.example/pages/1', markdown: '## Target\n' });
+  send(h, 'https://evil.example', { type: 'mdv-parent-url', url: 'https://evil.example/pages/hack' });
+  const btn = h.d.querySelector('#content h2 .anchor-link');
+  btn.click();
+  await h.tick(0);
+  assert.equal(h.clipboard.text, 'https://confluence.example/pages/1#target');
+});

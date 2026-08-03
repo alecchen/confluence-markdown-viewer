@@ -4,10 +4,11 @@
 
   /* ---------- parent origin: derived, no hardcoded hosts ---------- */
   /* The embedding page's origin comes from document.referrer, so the viewer
-     accepts theme messages from whatever page iframes it (your Confluence).
-     The full referrer URL also gives the "copy link to heading" button its
-     target: in the embed it copies the Confluence page + #heading id (the
-     heading lives inside the iframe, so the embed script relays the hash). */
+     accepts messages from whatever page iframes it (your Confluence). The
+     referrer is often trimmed to just the origin by Referrer-Policy, so the
+     parent also posts its full URL (mdv-parent-url); that URL is what the
+     "copy link to heading" button targets in the embed (the Confluence page +
+     #heading id, since the heading lives inside the iframe). */
   var parentOrigin = null;
   var parentPageUrl = '';
   try {
@@ -186,6 +187,10 @@
          iframe). Scroll now if rendered, else apply once render() completes. */
       if (rendered) scrollToHeading(d.id);
       else pendingHash = d.id;
+    }
+    if (d.type === 'mdv-parent-url' && typeof d.url === 'string' && /^https?:/.test(d.url)) {
+      /* Full embedding-page URL, in case the referrer is trimmed to the origin. */
+      parentPageUrl = d.url.split('#')[0];
     }
   });
 

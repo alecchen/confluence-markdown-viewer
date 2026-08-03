@@ -50,3 +50,15 @@ test('embedded: the chain icon copies a Confluence URL, not the viewer URL', asy
   await h.tick(0);
   assert.equal(h.clipboard.text, 'https://confluence.example/pages/viewpage.action?pageId=42#hello-world');
 });
+
+test('embedded: a parent-sent page URL wins over an origin-only referrer', async () => {
+  const h = await boot({ referrer: 'https://confluence.example', markdown: '## Hello World\n' });
+  h.w.dispatchEvent(new h.w.MessageEvent('message', {
+    origin: 'https://confluence.example',
+    data: { type: 'mdv-parent-url', url: 'https://confluence.example/pages/viewpage.action?pageId=42' },
+  }));
+  const btn = h.d.querySelector('#content h2 .anchor-link');
+  btn.click();
+  await h.tick(0);
+  assert.equal(h.clipboard.text, 'https://confluence.example/pages/viewpage.action?pageId=42#hello-world');
+});
