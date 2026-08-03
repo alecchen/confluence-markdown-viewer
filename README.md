@@ -169,6 +169,7 @@ Paste this into the HTML macro on the target page (change the `?src=` path per d
       var r = f.getBoundingClientRect();
       window.scrollTo(0, window.pageYOffset + r.top + d.top - 80);
     }
+    if (d.type === 'mdv-viewport-request') postMdvViewport();
   });
   /* Heading deep links: the copied link is <this page>#<heading id>. The heading
      lives inside the iframe, so relay the hash to the viewer, which scrolls the
@@ -187,6 +188,25 @@ Paste this into the HTML macro on the target page (change the `?src=` path per d
   }
   sendPageUrl();
   f.addEventListener('load', sendPageUrl);
+
+  /* Image lightbox: the iframe is sized to the full doc height, so a fixed
+     overlay would center below the fold. Relay which slice of the iframe is
+     visible so the viewer can pin its overlay to the on-screen area. */
+  var mdvRaf = 0;
+  function postMdvViewport() {
+    if (mdvRaf) return;
+    mdvRaf = requestAnimationFrame(function () {
+      mdvRaf = 0;
+      var r = f.getBoundingClientRect();
+      var top = Math.max(0, -r.top);
+      var height = Math.min(window.innerHeight, f.offsetHeight - top);
+      if (height < 0) height = 0;
+      f.contentWindow.postMessage({ type: 'mdv-viewport', top: top, height: height }, childOrigin);
+    });
+  }
+  window.addEventListener('scroll', postMdvViewport, { passive: true });
+  window.addEventListener('resize', postMdvViewport);
+  postMdvViewport();
 })();
 </script>
 ```
@@ -200,9 +220,10 @@ The `<script>` is optional but recommended: it matches the rendered doc to the
 Confluence page theme (background color, text color, link color), keeps the iframe
 exactly as tall as its content (no nested scrollbars), and **re-syncs live when
 Confluence toggles between light and dark** — only pushing an update when the page
-background actually changes. Origins are derived from the iframe URL and the
-referrer, so no hostnames need configuring - only the `src` above must point at your
-real viewer URL.
+background actually changes. It also relays the iframe's visible slice, so the image
+lightbox centers in the on-screen area instead of below the fold. Origins are
+derived from the iframe URL and the referrer, so no hostnames need configuring -
+only the `src` above must point at your real viewer URL.
 
 It also makes heading deep links work: copied heading links target this page with the
 heading id as a hash, and the script relays that hash to the viewer so the page opens
