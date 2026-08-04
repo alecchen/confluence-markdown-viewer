@@ -80,6 +80,8 @@ html.mdv-embedded .markdown-body { padding-bottom: 0; }
 }
 
 .markdown-body img { max-width: 100%; cursor: zoom-in; }
+/* linked images are link buttons: pointer cursor, never a magnifier */
+.markdown-body a img { cursor: pointer; }
 
 .markdown-body table { border-collapse: collapse; display: block; overflow-x: auto; }
 .markdown-body th, .markdown-body td {

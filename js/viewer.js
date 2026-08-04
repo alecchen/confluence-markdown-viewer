@@ -480,9 +480,11 @@
 
   function enableImageZoom() {
     contentEl.querySelectorAll('img').forEach(function (img) {
-      /* linked images keep the link's own behavior (matches GitHub) */
-      if (img.closest('a')) return;
-      img.addEventListener('click', function () { openLightbox(img); });
+      img.addEventListener('click', function () {
+        /* linked images keep the link's own behavior (matches GitHub) */
+        if (img.closest('a')) return;
+        openLightbox(img);
+      });
     });
   }
 
