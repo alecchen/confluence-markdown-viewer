@@ -9,7 +9,7 @@ A static, reusable Markdown viewer for embedding in Confluence. Markdown stays t
 - GitHub-flavored Markdown styling, GitHub-style tables.
 - Confluence-style heading links: hover a heading and click the chain icon to copy a link to that section.
 - Solarized code highlighting.
-- Inter for text, JetBrains Mono for code.
+- System font stacks (no webfonts): native UI/Helvetica for text, ui-monospace/Menlo for code.
 - Confluence theme detection (via the embed script) with browser `prefers-color-scheme` fallback.
 - Dynamic light/dark switching without reload; manual override persists in localStorage.
 - Draft → publish: only `published/` is ever served; drafts never leave a draft repo outside the web root.
@@ -307,8 +307,6 @@ Re-run the archive command to update (it replaces file contents).
 - marked-gfm-heading-id 3.2.0 — https://cdnjs.cloudflare.com/ajax/libs/marked-gfm-heading-id/3.2.0/index.umd.min.js
 - highlight.js 11.9.0 — https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js
 - mermaid 10.9.1 (lazy, only when a ```` ```mermaid ```` block is present) — https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js
-- Inter + JetBrains Mono via Google Fonts (browser-side). If your network blocks
-  Google Fonts, self-host the woff2 files under `css/fonts/` and update `viewer.html`.
 
 ## Testing
 
