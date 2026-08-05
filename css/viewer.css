@@ -84,6 +84,8 @@ html.mdv-embedded .markdown-body { padding-bottom: 0; }
 .markdown-body a img { cursor: pointer; }
 /* shields.io badges are status graphics, not zoomable images */
 .markdown-body img[src*="shields.io"] { cursor: default; }
+/* a linked badge is still a link: keep the pointer cursor */
+.markdown-body a img[src*="shields.io"] { cursor: pointer; }
 
 .markdown-body table { border-collapse: collapse; display: block; overflow-x: auto; }
 .markdown-body th, .markdown-body td {
