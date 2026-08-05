@@ -478,11 +478,18 @@
     if (e.key === 'Escape' || e.key === 'Esc') closeLightbox();
   });
 
+  /* shields.io badges are small status graphics; clicking one would zoom a
+     tiny image to no benefit, so they keep their default (open) behavior. */
+  function isShieldsIo(src) {
+    return /\/\/(?:img\.)?shields\.io\//.test(src);
+  }
+
   function enableImageZoom() {
     contentEl.querySelectorAll('img').forEach(function (img) {
       img.addEventListener('click', function () {
         /* linked images keep the link's own behavior (matches GitHub) */
         if (img.closest('a')) return;
+        if (isShieldsIo(img.currentSrc || img.src)) return;
         openLightbox(img);
       });
     });

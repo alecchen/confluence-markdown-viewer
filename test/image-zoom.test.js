@@ -46,6 +46,12 @@ test('an image inside a link does not open the lightbox', async () => {
   assert.ok(!overlay(h) || !overlay(h).classList.contains('open'));
 });
 
+test('a shields.io badge does not open the lightbox', async () => {
+  const h = await boot({ markdown: '![b](https://img.shields.io/badge/build-passing-brightgreen.svg)' });
+  h.d.querySelector('#content img').click();
+  assert.ok(!overlay(h) || !overlay(h).classList.contains('open'));
+});
+
 test('embedded: mdv-viewport pins the lightbox to the visible slice', async () => {
   const h = await boot({ embedded: true, referrer: 'https://confluence.example/pages/1', markdown: '![a](img.png)' });
   send(h, 'https://confluence.example', { type: 'mdv-viewport', top: 120, height: 400 });
