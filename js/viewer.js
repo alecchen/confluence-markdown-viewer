@@ -608,6 +608,8 @@
     contentEl.querySelectorAll('a[data-preview]').forEach(function (a) {
       a.addEventListener('mouseenter', function () { showPreview(a); });
       a.addEventListener('mouseleave', hidePreview);
+      var img = new Image();
+      img.src = a.getAttribute('data-preview');
     });
   }
 
