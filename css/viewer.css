@@ -289,6 +289,26 @@ html.mdv-embedded .markdown-body { padding-bottom: 0; }
 .mdv-lightbox-link:hover { text-decoration: underline; }
 body.mdv-lightbox-open { overflow: hidden; }
 
+/* ---------- link hover preview ---------- */
+.mdv-preview {
+  position: fixed;
+  z-index: 300;
+  display: none;
+  padding: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+.mdv-preview.open { display: block; }
+.mdv-preview img {
+  display: block;
+  max-width: 280px;
+  max-height: 200px;
+  object-fit: contain;
+}
+
 /* ---------- theme toggle ---------- */
 #theme-toggle {
   position: fixed;

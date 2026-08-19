@@ -29,6 +29,7 @@ async function boot(opts = {}) {
     fetchImpl = null,
     dark = false,
     embedded = false,
+    hover = false,
     seed = null,
   } = opts;
 
@@ -52,7 +53,8 @@ async function boot(opts = {}) {
 
   /* Shims for APIs jsdom does not implement. */
   w.matchMedia = (query) => ({
-    matches: dark, media: query,
+    matches: query.indexOf('(hover') === 0 ? hover : dark,
+    media: query,
     addEventListener() {}, addListener() {}, removeEventListener() {},
   });
   Object.defineProperty(w, 'isSecureContext', { value: true, configurable: true });

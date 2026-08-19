@@ -203,6 +203,7 @@
       viewportTop = d.top;
       viewportHeight = d.height;
       if (lightboxOpen) positionLightbox();
+      if (previewOpen && previewAnchor) positionPreview(previewAnchor);
     }
   });
 
@@ -475,7 +476,10 @@
   }
 
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' || e.key === 'Esc') closeLightbox();
+    if (e.key === 'Escape' || e.key === 'Esc') {
+      closeLightbox();
+      hidePreview();
+    }
   });
 
   /* shields.io badges are small status graphics; clicking one would zoom a
@@ -514,6 +518,12 @@
       if (/^(?:[a-z][a-z0-9+.-]*:|\/|#)/i.test(v) || v.indexOf('//') === 0) return;
       el.setAttribute(attr, prefix + v);
     });
+    contentEl.querySelectorAll('a[data-preview]').forEach(function (a) {
+      var v = a.getAttribute('data-preview');
+      if (v && !/^(?:[a-z][a-z0-9+.-]*:|\/|#)/i.test(v) && v.indexOf('//') !== 0) {
+        a.setAttribute('data-preview', prefix + v);
+      }
+    });
   }
 
   /* Content links open in a new tab: inside the Confluence iframe, navigating
@@ -528,8 +538,82 @@
     });
   }
 
+  function hoistPreviewTitles() {
+    if (!window.matchMedia('(hover: hover)').matches) return;
+    contentEl.querySelectorAll('a[title^="preview:"]').forEach(function (a) {
+      a.setAttribute('data-preview', a.getAttribute('title').replace(/^preview:\s*/, ''));
+      a.removeAttribute('title');
+    });
+  }
+
+  /* ---------- link hover preview ---------- */
+  /* Hover a link with "preview:" in its title -> show a small thumbnail near the
+     cursor; reuses the viewport-relay pattern the lightbox already relies on. */
+  var previewEl = null;
+  var previewOpen = false;
+  var previewAnchor = null;
+
+  function ensurePreviewEl() {
+    if (!previewEl) {
+      previewEl = document.createElement('div');
+      previewEl.className = 'mdv-preview';
+      var img = document.createElement('img');
+      img.alt = '';
+      img.addEventListener('error', hidePreview);
+      previewEl.appendChild(img);
+      document.body.appendChild(previewEl);
+    }
+    return previewEl;
+  }
+
+  function showPreview(a) {
+    var box = ensurePreviewEl();
+    box.querySelector('img').src = a.getAttribute('data-preview');
+    box.classList.add('open');
+    previewOpen = true;
+    previewAnchor = a;
+    positionPreview(a);
+  }
+
+  function hidePreview() {
+    if (!previewOpen) return;
+    previewOpen = false;
+    previewAnchor = null;
+    previewEl.classList.remove('open');
+    previewEl.querySelector('img').src = '';
+    previewEl.style.top = '';
+    previewEl.style.left = '';
+  }
+
+  function positionPreview(a) {
+    if (!previewEl) return;
+    var r = a.getBoundingClientRect();
+    var visibleTop = (window.parent !== window && viewportTop !== null) ? viewportTop : 0;
+    var visibleH = (window.parent !== window && viewportHeight !== null)
+      ? viewportHeight : window.innerHeight;
+    var bw = previewEl.offsetWidth;
+    var bh = previewEl.offsetHeight;
+    var top = r.bottom - visibleTop + 8;
+    if (top + bh > visibleH - 8) top = Math.max(8, r.top - visibleTop - bh - 8);
+    if (top < 8) top = 8;
+    var left = r.left + 12;
+    if (left + bw > window.innerWidth - 8) left = window.innerWidth - bw - 8;
+    if (left < 8) left = 8;
+    previewEl.style.top = top + 'px';
+    previewEl.style.left = left + 'px';
+  }
+
+  function enableLinkPreviews() {
+    if (!window.matchMedia('(hover: hover)').matches) return;
+    contentEl.querySelectorAll('a[data-preview]').forEach(function (a) {
+      a.addEventListener('mouseenter', function () { showPreview(a); });
+      a.addEventListener('mouseleave', hidePreview);
+    });
+  }
+
   function render(text) {
     contentEl.innerHTML = marked.parse(text);
+    hoistPreviewTitles();
     rewriteAssetPaths();
     contentEl.querySelectorAll('pre code').forEach(function (el) {
       if (el.classList.contains('language-mermaid')) return;
@@ -539,6 +623,7 @@
     enhanceHeadings();
     setLinkTargets();
     enableImageZoom();
+    enableLinkPreviews();
     addCopyButtons();
     rendered = true;
     apply();

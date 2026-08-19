@@ -12,6 +12,7 @@ A static, reusable Markdown viewer for embedding in Confluence. Markdown stays t
 - System font stacks (no webfonts): native UI/Helvetica for text, ui-monospace/Menlo for code.
 - Confluence theme detection (via the embed script) with browser `prefers-color-scheme` fallback.
 - Dynamic light/dark switching without reload; manual override persists in localStorage.
+- Link hover preview: attach a thumbnail to any link with `"preview:image.png"` in the title — a small preview appears on hover.
 - Draft → publish: only `published/` is ever served; drafts never leave a draft repo outside the web root.
 
 ## Layout
@@ -80,6 +81,26 @@ relative paths — the viewer resolves them against the markdown file's director
 With `?src=published/foo.md`, `images/architecture.png` resolves to
 `published/images/architecture.png`. Only the extensions listed in the publish
 hook are copied to the served tree; add others to the `case` list if you need them.
+
+### Link hover preview
+
+Attach a thumbnail to any link by adding `"preview:<image path>"` as the title.
+On hover, a small preview image appears near the cursor. Links without this title
+work exactly as before — the feature is purely opt-in per link.
+
+```md
+[slides](slides.pdf "preview:slides-cover.png")
+[report](report.pdf "preview:report-thumb.png")
+[external](https://example.com/deck "preview:https://cdn.example.com/thumb.png")
+```
+
+Relative paths resolve against the markdown file's directory, the same way images
+and other assets do. The thumbnail must be one of the published asset types
+(png, jpg, gif, svg, webp) so the publish hook copies it to `published/`.
+
+The preview is hidden on touch devices (no hover) and closes on `Esc` or when the
+cursor leaves the link. In the Confluence iframe embed, the thumbnail pins itself
+to the visible viewport, just like the image lightbox.
 
 ### Sizing images
 
