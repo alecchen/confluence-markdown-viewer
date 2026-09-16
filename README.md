@@ -296,6 +296,39 @@ one never navigates the embedded iframe away from the Confluence page. Fragment 
 - Fenced blocks tagged ```` ```mermaid ```` render as diagrams. Mermaid (cdnjs) loads lazily only when a
   doc contains a mermaid block, and re-renders when the page theme toggles.
 
+### Gantt time zones
+
+Mermaid gantt has no time-zone concept: with `dateFormat HH:mm` every clock is read
+against the browser's own day, so a chart written in one zone shows the wrong hours
+in another. Add a comment inside the fence to say which zone the clocks are written
+in, and the viewer puts a zone picker above that diagram:
+
+````md
+```mermaid
+gantt
+dateFormat HH:mm
+axisFormat %H:%M
+%% tz-base: +08:00
+section warm
+TTFT   :done, t1, 09:00, 09:14
+Decode :done, t2, 09:14, 09:52
+```
+````
+
+The picker defaults to the reader's own zone, so the chart opens showing their local
+hours, and any other zone can be selected from it. `tz-base` takes either a fixed
+offset (`+08:00`, `UTC+08:00`, `GMT+0800`) or an IANA name (`Asia/Shanghai`,
+`America/Los_Angeles`), resolved through `Intl` for the date being charted, so DST is
+handled per zone rather than as a fixed hour count.
+
+Only the clocks move: each task's start and end are rewritten, which leaves ids,
+status tags, durations and `after`/`until` references alone. A task whose end is
+earlier than its start is a midnight wrap, and stays one after the shift.
+
+Blocks without the comment are untouched - they render exactly as they always have,
+in whatever zone the reader's browser is in. A `tz-base` line that names a zone the
+browser cannot resolve is ignored.
+
 ## Origins
 
 No hostnames need configuring. The embed script derives the child origin from the
@@ -341,7 +374,8 @@ npm test           # node:test — 40+ assertions across the README's features
 ```
 
 - One test file per feature area in `test/` (`markdown-rendering`, `headings-toc`,
-  `asset-paths`, `image-sizes`, `code-copy-mermaid`, `themes`, `messaging`, `params`).
+  `asset-paths`, `image-sizes`, `code-copy-mermaid`, `gantt-timezone`, `themes`,
+  `messaging`, `params`).
 - The libs under test come from `package.json` pinned to the exact cdnjs versions;
   `alignment.test.js` fails if the two drift apart.
 - Not covered here: real mermaid SVG rendering, real clipboard writes, and the

@@ -289,11 +289,176 @@
     }
   }
 
+  /* ---------- gantt time zones ---------- */
+  /* Mermaid gantt has no time-zone concept: `dateFormat HH:mm` reads every clock
+     against the browser's own day, so a chart written in one zone shows the wrong
+     hours in another. A `%% tz-base: <zone>` comment inside the fence opts a
+     block in; the fence stays otherwise intact and is re-processed from its own
+     text on every zone change, never from the rendered SVG.
+     Only the clocks move. Mermaid resolves every short time against one local
+     day and lays the tasks out in the order they appear, so shifting all of them
+     by the same amount leaves both the order and each task's length alone: a
+     duration window keeps its width, and a task that ran past midnight is still
+     the one that does. Zones are resolved through Intl for the date the chart is
+     drawn from, so the shift follows DST rather than a fixed hour count. */
+  var TZ_RE = /^\s*%%\s*tz-base\s*:\s*(.+?)\s*$/;
+  /* A task's start and end are separate comma-separated fields; a field counts
+     as a clock when that is all it holds, which leaves ids, status tags and
+     durations (`30m`) alone. */
+  var CLOCK_FIELD_RE = /^\s*\d{1,2}:[0-5]\d\s*$/;
+  var DIRECTIVE_RE = /^\s*(?:%%|gantt\b|dateFormat\b|axisFormat\b|title\b|section\b|excludes\b|includes\b|todayMarker\b|tickInterval\b|inclusiveEndDates\b|click\b|href\b)/;
+  var tzSupported = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+  /* Fixed offsets parse arithmetically; anything else goes through Intl, which
+     resolves IANA names for the date being charted (DST included) and throws
+     RangeError on junk - no allowlist to maintain. */
+  function resolveOffsetMinutes(tz, ref) {
+    if (!tz) return null;
+    var s = String(tz).trim();
+    var m = /^(?:UTC|GMT)?\s*([+-])(\d{2}):?(\d{2})$/i.exec(s);
+    if (m) return (m[1] === '-' ? -1 : 1) * (parseInt(m[2], 10) * 60 + parseInt(m[3], 10));
+    try {
+      var parts = new Intl.DateTimeFormat('en-US', { timeZone: s, timeZoneName: 'shortOffset' })
+        .formatToParts(ref || new Date());
+      for (var i = 0; i < parts.length; i++) {
+        if (parts[i].type !== 'timeZoneName') continue;
+        var g = /^GMT([+-])(\d{1,2})(?::(\d{2}))?$/.exec(parts[i].value);
+        if (!g) return null;
+        return (g[1] === '-' ? -1 : 1) * (parseInt(g[2], 10) * 60 + parseInt(g[3] || '0', 10));
+      }
+      return null;
+    } catch (e) { return null; }
+  }
+  function tzOk(tz) { return resolveOffsetMinutes(tz) !== null; }
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function hm(min) {
+    var t = ((Math.round(min) % 1440) + 1440) % 1440;
+    return pad2(Math.floor(t / 60)) + ':' + pad2(t % 60);
+  }
+  function hmMin(h, m) {
+    var hh = parseInt(h, 10), mm = parseInt(m, 10);
+    if (hh > 24 || (hh === 24 && mm > 0)) return null;   /* a loose 24:00 is midnight */
+    return (hh * 60 + mm) % 1440;
+  }
+  function fmtOffset(min) {
+    var a = Math.abs(min);
+    return 'UTC' + (min < 0 ? '-' : '+') + pad2(Math.floor(a / 60)) + ':' + pad2(a % 60);
+  }
+  /* "Asia/Shanghai (UTC+08:00)"; a zone that only parses as a fixed offset keeps
+     its own spelling instead of repeating itself. */
+  function tzLabel(tz) {
+    var off = resolveOffsetMinutes(tz);
+    if (off === null) return tz;
+    return /^(?:UTC|GMT)?\s*[+-]\d{2}/i.test(String(tz).trim())
+      ? fmtOffset(off) : tz + ' (' + fmtOffset(off) + ')';
+  }
+  function tzBaseOf(src) {
+    if (!/^\s*gantt\b/.test(src)) return null;
+    var lines = src.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      var m = TZ_RE.exec(lines[i]);
+      if (m && tzOk(m[1])) return m[1].trim();
+    }
+    return null;
+  }
+  /* The picker lists zones a reader recognises - the fixed-offset spellings the
+     comment accepts, then the regions these charts come from - rather than
+     Intl.supportedValuesOf's 400+ names. The viewer's own zone leads the list
+     when it is not already in it, since that is the default. */
+  var TZ_HOURLY = ['UTC', 'America/Los_Angeles', 'America/Denver', 'America/Chicago', 'America/New_York',
+    'America/Sao_Paulo', 'Europe/London', 'Europe/Berlin', 'Europe/Moscow', 'Asia/Dubai',
+    'Asia/Karachi', 'Asia/Kolkata', 'Asia/Shanghai', 'Asia/Tokyo', 'Australia/Sydney', 'Pacific/Auckland'];
+  function tzOptions(zone, base) {
+    var list = [], seen = {};
+    function add(z) {
+      if (!z || seen[z] || !tzOk(z)) return;
+      seen[z] = 1;
+      list.push(z);
+    }
+    add(zone);
+    add(base);
+    for (var i = -12; i <= 14; i++) add(fmtOffset(i * 60));
+    TZ_HOURLY.forEach(add);
+    return list;
+  }
+
+  /* Minutes the target zone's clocks sit ahead of the base zone's. Resolved for
+     today, which is the day mermaid charts a `HH:mm` diagram on, so a zone in
+     another DST state is compared on its current offset rather than a fixed one. */
+  function zoneDelta(base, target) {
+    var from = resolveOffsetMinutes(base);
+    var to = resolveOffsetMinutes(target);
+    return from === null || to === null ? null : to - from;
+  }
+
+  /* One task line, moved. Only whole fields that are a clock are touched, so ids,
+     status tags and durations (`30m`) pass through untouched. Mermaid reads an end
+     earlier than its start as running to the next day, and both clocks move by
+     the same amount, so that wrap survives without having to be named. */
+  function shiftTaskLine(line, delta) {
+    var colon = line.indexOf(':');
+    if (colon === -1) return line;
+    var head = line.slice(0, colon + 1);
+    var parts = line.slice(colon + 1).split(',');
+    for (var i = 0; i < parts.length; i++) {
+      if (!CLOCK_FIELD_RE.test(parts[i])) continue;
+      var at = parts[i].indexOf(':');
+      var v = hmMin(parts[i].slice(0, at), parts[i].slice(at + 1));
+      if (v !== null) parts[i] = parts[i].replace(/\d{1,2}:[0-5]\d/, hm(v + delta));
+    }
+    return head + parts.join(',');
+  }
+
+  /* Rewrites a block. Directives and comments are stepped over: the tz-base line
+     itself carries something that reads as a clock, and a `click` target can too. */
+  function shiftGantt(src, delta) {
+    return src.split('\n').map(function (line) {
+      if (DIRECTIVE_RE.test(line) || line.indexOf(':') === -1) return line;
+      return shiftTaskLine(line, delta);
+    }).join('\n');
+  }
+
+  function zoneCtl(b) {
+    var wrap = document.createElement('div');
+    wrap.className = 'mdv-tz';
+    var sel = document.createElement('select');
+    sel.setAttribute('aria-label', 'Time zone for this diagram');
+    tzOptions(b.zone, b.base).forEach(function (z) {
+      var o = document.createElement('option');
+      o.value = z;
+      o.textContent = tzLabel(z);
+      sel.appendChild(o);
+    });
+    sel.value = b.zone;
+    sel.addEventListener('change', function () {
+      if (sel.value) b.zone = sel.value;
+      redrawZoneBlock(b);
+    });
+    wrap.appendChild(sel);
+    return wrap;
+  }
+
+  /* Base and target run through the same resolver, so a chart keeps its own hours
+     exactly when the reader is already in its zone: the delta lands on 0 and the
+     block is rendered as authored. */
+  function redrawZoneBlock(b) {
+    var delta = zoneDelta(b.base, b.zone);
+    var text = delta === null || delta === 0 ? b.src : shiftGantt(b.src, delta);
+    loadMermaid().then(function () {
+      return mermaid.render('mdv-m-' + (mermaidSeq++), text);
+    }).then(function (r) {
+      b.pre.innerHTML = r.svg;
+    }).catch(function (err) {
+      b.pre.innerHTML = '<div class="mermaid-error">Mermaid error: ' + escapeHtml(err.message) + '</div>';
+    });
+  }
+
   /* ---------- mermaid diagrams (lazy-loaded from cdnjs) ---------- */
   var MERMAID_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js';
   var mermaidBlocks = [];
   var lastMermaidTheme = null;
   var mermaidPromise = null;
+  var mermaidSeq = 0;
 
   function loadMermaid() {
     if (!mermaidPromise) {
@@ -310,10 +475,17 @@
 
   function collectMermaid() {
     mermaidBlocks = [];
+    mermaidSeq = 0;
     contentEl.querySelectorAll('pre code.language-mermaid').forEach(function (code) {
+      var src = code.textContent;
       var pre = code.parentNode;
       pre.classList.add('mdv-mermaid');   /* not 'mermaid': avoid auto-init on script load */
-      mermaidBlocks.push({ pre: pre, src: code.textContent });
+      mermaidBlocks.push({
+        pre: pre,
+        src: src,
+        base: tzBaseOf(src),
+        zone: tzSupported
+      });
     });
   }
 
@@ -322,13 +494,22 @@
     lastMermaidTheme = theme;
     mermaid.initialize({ startOnLoad: false, theme: theme, securityLevel: 'loose' });
     var queue = Promise.resolve();
-    mermaidBlocks.forEach(function (b, i) {
+    mermaidBlocks.forEach(function (b) {
       queue = queue.then(function () {
-        return mermaid.render('mdv-m-' + i, b.src).then(function (r) {
-          b.pre.innerHTML = r.svg;
-        }).catch(function (err) {
-          b.pre.innerHTML = '<div class="mermaid-error">Mermaid error: ' + escapeHtml(err.message) + '</div>';
-        });
+        if (!b.base) {
+          return mermaid.render('mdv-m-' + (mermaidSeq++), b.src).then(function (r) {
+            b.pre.innerHTML = r.svg;
+          }).catch(function (err) {
+            b.pre.innerHTML = '<div class="mermaid-error">Mermaid error: ' + escapeHtml(err.message) + '</div>';
+          });
+        }
+        /* A tagged block is re-rendered from its own text on every zone change,
+           so the control sits above it and the svg is replaced in place. */
+        if (!b.ctl) {
+          b.ctl = zoneCtl(b);
+          b.pre.parentNode.insertBefore(b.ctl, b.pre);
+        }
+        return Promise.resolve(redrawZoneBlock(b));
       });
     });
   }
