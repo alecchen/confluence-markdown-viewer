@@ -280,15 +280,14 @@
       details.className = 'toc';
       details.open = true;
       details.innerHTML = '<summary>Contents</summary><ul>' + items.join('') + '</ul>';
-      /* A progressive render reserves a placeholder for the TOC before the first
-         chunk, so filling it in does not push the document down under a reader who
-         has already started reading. A one-shot render has no placeholder. */
-      var slot = contentEl.querySelector(':scope > .mdv-toc-slot');
+      /* A progressive render reserved space for the TOC before the first chunk.
+         Replace that placeholder rather than nesting inside it: the placeholder
+         carries a real .toc of its own for measuring, so appending into it would
+         leave two .toc elements - an empty one and the real one inside it. The
+         one-shot render has no placeholder and inserts at the top. */
+      var slot = contentEl.querySelector(':scope > .mdv-toc-placeholder');
       if (slot) {
-        slot.appendChild(details);
-        /* the placeholder kept its intrinsic height while empty; release it */
-        slot.style.minHeight = '';
-        slot.classList.remove('mdv-toc-slot');
+        contentEl.replaceChild(details, slot);
       } else {
         contentEl.insertBefore(details, contentEl.firstChild);
       }
@@ -963,13 +962,18 @@
     /* With ?toc=1 the TOC is only known once every chunk is in, but it belongs at
        the top. Reserve its space now so filling it in later does not shove the
        document down under a reader who is already reading the first chunks. The
-       placeholder nests a collapsed details with the same styling, so the reserved
-       space is the TOC's own intrinsic height. */
+       placeholder holds a real details.toc carrying the same CSS, so the reserved
+       space is the TOC's own intrinsic height, and enhanceHeadings() replaces the
+       whole wrapper with the finished TOC.
+       The measuring child carries .mdv-toc-measure on top of .toc, because
+       enhanceHeadings() builds its link list from .toc a over the whole content
+       element - without the extra class the placeholder's empty list would be
+       counted as headings. */
     if (enableToc) {
       var slot = document.createElement('div');
-      slot.className = 'mdv-toc-slot';
+      slot.className = 'mdv-toc-placeholder';
       var measure = document.createElement('details');
-      measure.className = 'toc';
+      measure.className = 'toc mdv-toc-measure';
       measure.innerHTML = '<summary>Contents</summary><ul><li></li></ul>';
       slot.appendChild(measure);
       contentEl.appendChild(slot);
