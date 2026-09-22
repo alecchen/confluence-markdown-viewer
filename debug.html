@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confluence Markdown Viewer - debug</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f6f8fa; color: #1f2328;
+  }
+  @media (prefers-color-scheme: dark) { body { background: #0d1117; color: #e6edf3; } }
+  #panel {
+    display: grid; grid-template-columns: max-content 1fr max-content 1fr;
+    gap: 6px 10px; align-items: center;
+    padding: 10px 14px; border-bottom: 1px solid rgba(128,128,128,.35);
+  }
+  #panel label { font-weight: 600; white-space: nowrap; }
+  #panel input[type="text"], #panel input[type="number"], #panel select {
+    font: inherit; padding: 3px 6px; width: 100%; min-width: 0;
+    border: 1px solid rgba(128,128,128,.5); border-radius: 5px;
+    background: Canvas; color: inherit;
+  }
+  #panel button {
+    font: inherit; padding: 4px 10px; cursor: pointer;
+    border: 1px solid rgba(128,128,128,.5); border-radius: 5px;
+    background: Canvas; color: inherit;
+  }
+  #panel button.primary { font-weight: 600; }
+  #panel .row-actions { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  #panel .quick { display: inline-flex; gap: 4px; align-items: center; }
+  #panel .quick button { padding: 2px 7px; font-size: 12px; }
+  .hint { opacity: .7; font-size: 12px; }
+  #url { grid-column: 1 / -1; font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+         padding: 4px 6px; background: rgba(128,128,128,.12); border-radius: 5px;
+         word-break: break-all; }
+  #out { padding: 10px 14px; border-bottom: 1px solid rgba(128,128,128,.35); }
+  #out table { border-collapse: collapse; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  #out th, #out td { text-align: left; padding: 2px 12px 2px 0; white-space: nowrap; }
+  #out th { opacity: .7; font-weight: 600; }
+  #out h2 { font-size: 12px; margin: 12px 0 5px; opacity: .8; text-transform: uppercase; letter-spacing: .04em; }
+  #out h2:first-child { margin-top: 0; }
+  #chart { display: block; width: 100%; height: 64px; margin-top: 6px;
+           border: 1px solid rgba(128,128,128,.35); border-radius: 5px; }
+  #err { color: #d1242f; font-family: ui-monospace, Menlo, monospace; font-size: 12px; white-space: pre-wrap; }
+  #stage { width: 100%; height: 500px; border: 0; display: block; background: Canvas;
+           border-top: 1px solid rgba(128,128,128,.35); }
+</style>
+</head>
+<body>
+
+<form id="panel" onsubmit="return false">
+  <label for="doc">Doc</label>
+  <input type="text" id="doc" placeholder="README.md, or published/foo.md" spellcheck="false">
+
+  <label for="libs">Libs</label>
+  <select id="libs">
+    <option value="local">local (lib/, same origin)</option>
+    <option value="cdnjs">cdnjs (cross-origin, pinned)</option>
+  </select>
+
+  <label for="chunk">Threshold</label>
+  <input type="number" id="chunk" min="0" step="1000">
+
+  <label for="budget">Frame budget</label>
+  <input type="number" id="budget" min="1" step="1">
+
+  <label for="mermaid">Mermaid</label>
+  <select id="mermaid">
+    <option value="skip">default (cdnjs, as shipped)</option>
+    <option value="local">local (lib/mermaid.min.js)</option>
+    <option value="cdnjs">cdnjs (explicit)</option>
+  </select>
+
+  <label for="toc">TOC</label>
+  <select id="toc">
+    <option value="">off</option>
+    <option value="1">?toc=1</option>
+  </select>
+
+  <div class="row-actions">
+    <button type="button" id="run" class="primary">Reload</button>
+    <span class="quick">threshold:
+      <button type="button" data-th="0">0</button>
+      <button type="button" data-th="1000">1k</button>
+      <button type="button" data-th="5000">5k</button>
+      <button type="button" data-th="50000">50k</button>
+      <button type="button" data-th="150000">150k</button>
+      <button type="button" id="threshold-default">default</button>
+    </span>
+    <button type="button" id="reset">Reset</button>
+    <button type="button" id="copy">Copy URL</button>
+    <span class="hint" id="status"></span>
+  </div>
+  <div id="url"></div>
+</form>
+
+<div id="out"></div>
+<iframe id="stage" scrolling="no" allow="clipboard-write" title="viewer under test"></iframe>
+
+<script>
+/* Debug page for tuning the progressive render and the script source WITHOUT
+   touching the deployed files.
+
+   It drives a real viewer by building the child document from the actual
+   viewer.html (fetched, not copied), swapping the three vendored lib tags for
+   either lib/ or their pinned cdnjs URLs, and appending a probe. The child is a
+   srcdoc iframe, so it is same-origin and this page reads its timings straight
+   out of its performance timeline; srcdoc children resolve relative URLs against
+   THIS document's URL, which is why ?src=README.md and ?src=published/foo.md
+   both work from here.
+
+   Every setting rides on this page's query string, so a comparison is a URL you
+   can reload or hand to someone else. */
+(function () {
+  var SHIPPED_CHUNK = 150000, SHIPPED_BUDGET = 25;
+  var LOCAL_LIBS = ['lib/marked.min.js', 'lib/marked-gfm-heading-id.min.js', 'lib/highlight.min.js'];
+  /* Pinned to package.json. alignment.test.js asserts these versions; cdnjs's
+     marked-gfm-heading-id file is the umd build (9203B minified) where lib/ holds
+     the unminified one, and both export gfmHeadingId + resetHeadings. */
+  var CDN_LIBS = [
+    'https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/marked-gfm-heading-id/3.2.0/index.umd.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js'
+  ];
+  var MERMAID_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js';
+
+  var FIELDS = { doc: 'README.md', libs: 'local', chunk: '', budget: '', mermaid: 'skip', toc: '' };
+  var el = function (id) { return document.getElementById(id); };
+  var out = el('out'), stage = el('stage'), status = el('status');
+
+  /* ---------- config <-> query string ---------- */
+  function readConfig() {
+    var p = new URLSearchParams(location.search), c = {}, k;
+    for (k in FIELDS) c[k] = p.has(k) ? p.get(k) : FIELDS[k];
+    if (['local', 'cdnjs'].indexOf(c.libs) === -1) c.libs = FIELDS.libs;
+    return c;
+  }
+  function writeConfig(c) {
+    var p = new URLSearchParams(), k;
+    for (k in FIELDS) if (c[k] !== FIELDS[k] && c[k] !== '') p.set(k, c[k]);
+    var q = p.toString();
+    return location.pathname + (q ? '?' + q : '');
+  }
+  function configFromForm() {
+    var c = {}, k;
+    for (k in FIELDS) c[k] = el(k).value;
+    return c;
+  }
+  function applyConfigToForm(c) {
+    var k;
+    for (k in FIELDS) el(k).value = c[k];
+  }
+  function viewerQuery(c) {
+    var p = new URLSearchParams();
+    p.set('src', c.doc);
+    if (c.chunk !== '') p.set('chunk', c.chunk);
+    if (c.budget !== '') p.set('budget', c.budget);
+    if (c.toc) p.set('toc', c.toc);
+    if (c.mermaid === 'local') p.set('mermaid', new URL('lib/mermaid.min.js', location.href).href);
+    if (c.mermaid === 'cdnjs') p.set('mermaid', MERMAID_CDN);
+    return p.toString();
+  }
+
+  /* ---------- the child document ---------- */
+  /* Injected immediately before js/viewer.js. A srcdoc child's location IS
+     about:srcdoc - relative fetches still resolve against this page's URL, but
+     location.search is empty and history.replaceState throws a SecurityError, so
+     the child cannot give itself a query string. The probe therefore hands the
+     options to viewer.js directly through the window.__mdvParams hook that
+     buildChild splices into its one URLSearchParams line. */
+  function probeScript(q) {
+    return [
+      '<script>window.__mdvParams=new URLSearchParams(' + JSON.stringify(q).replace(/</g, '\\u003c') + ');<\/script>',
+      '<script>window.__p={t0:performance.now(),fcp:null,done:null,yields:0};<\/script>',
+      '<script>',
+      '(function(){',
+      '  try{ new PerformanceObserver(function(l){ l.getEntries().forEach(function(e){',
+      '    if(e.name==="first-contentful-paint" && window.__p.fcp===null) window.__p.fcp=performance.now();',
+      '  }); }).observe({type:"paint",buffered:true}); }catch(e){}',
+      '})();',
+      '<\/script>'
+    ].join('\n');
+  }
+
+  var LIB_TAGS_RE = /(?:[ \t]*<script src="lib\/[^"]+"><\/script>\n?)+/;
+  var VIEWER_TAG_RE = /[ \t]*<script src="js\/viewer\.js"><\/script>/;
+  var HOOK_FROM = 'var params = new URLSearchParams(location.search);';
+
+  function buildChild(html, c, q, viewerJs) {
+    var tags = (c.libs === 'cdnjs' ? CDN_LIBS : LOCAL_LIBS)
+      .map(function (u) { return '<script src="' + u + '"><\/script>'; }).join('\n');
+    /* Drop the vendored tags viewer.html ships and put the chosen set back in the
+       same place - immediately before viewer.js, which needs them. The test is
+       separate from the replace on purpose: with libs=local the replacement is
+       byte-identical to the match, so comparing before/after proves nothing. */
+    if (!LIB_TAGS_RE.test(html)) throw new Error('could not find the lib script tags in viewer.html');
+    var swapped = html.replace(LIB_TAGS_RE, tags + '\n');
+    if (!VIEWER_TAG_RE.test(swapped)) throw new Error('could not find the js/viewer.js tag in viewer.html');
+
+    /* viewer.js has to be inlined rather than left as a src: the params hook below
+       is a one-line edit inside it, and inlining is also what keeps the child's
+       base URL out of the picture. Safe because viewer.js contains no script-end
+       tag and no HTML-comment opener in any string - a sequence like that inside
+       a script element derails the HTML parser and the tag never closes. The same
+       hazard applies to THIS block, which is why the comment names them rather
+       than spelling them out. test/debug-page.test.js asserts it for viewer.js. */
+    if (viewerJs.indexOf('<\/script') !== -1 || viewerJs.indexOf('<\!--') !== -1) {
+      throw new Error('js/viewer.js contains a sequence that cannot be inlined into a script tag');
+    }
+    if (viewerJs.indexOf(HOOK_FROM) === -1) throw new Error('could not find the params line in js/viewer.js');
+    var hooked = viewerJs.replace(HOOK_FROM,
+      'var params = window.__mdvParams || new URLSearchParams(location.search);');
+
+    /* Mark the moment each render path finishes. The two `rendered = true;`
+       assignments are indented differently (6 spaces in renderChunked, 4 in
+       render), so each anchored replace hits exactly one. */
+    var DONE = 'window.__p.done = performance.now();';
+    if (!/^      rendered = true;$/m.test(hooked) || !/^    rendered = true;$/m.test(hooked)) {
+      throw new Error('could not find both rendered = true markers in js/viewer.js');
+    }
+    hooked = hooked.replace(/^      rendered = true;$/m, '      rendered = true; ' + DONE)
+                   .replace(/^    rendered = true;$/m, '    rendered = true; ' + DONE);
+
+    return swapped.replace(VIEWER_TAG_RE,
+      probeScript(q) + '\n<script>\n' + hooked + '\n<\/script>');
+  }
+
+  /* ---------- run state ---------- */
+  var current = null, settleTimer = null, pollTimer = null, resources = [];
+
+  function startRun(c) {
+    clearTimeout(settleTimer); clearTimeout(pollTimer);
+    current = {
+      cfg: c, heights: [], t0: performance.now(), settled: null, timedOut: false,
+      error: null, probe: null, doneAt: 0
+    };
+    resources = [];
+    out.innerHTML = '<p class="hint">loading...</p>';
+    status.textContent = '';
+    el('url').textContent = location.origin + writeConfig(c);
+
+    Promise.all([
+      fetch('viewer.html').then(function (r) {
+        if (!r.ok) throw new Error('viewer.html: HTTP ' + r.status);
+        return r.text();
+      }),
+      fetch('js/viewer.js').then(function (r) {
+        if (!r.ok) throw new Error('js/viewer.js: HTTP ' + r.status);
+        return r.text();
+      })
+    ]).then(function (parts) {
+      var q = viewerQuery(c);
+      stage.srcdoc = buildChild(parts[0], c, q, parts[1]);
+      scheduleSettle();
+      poll();
+    }).catch(function (e) {
+      current.error = e.message;
+      render();
+    });
+  }
+
+  /* The child is same-origin, so every number below comes out of its own
+     performance timeline and DOM - no inference from messages. */
+  function poll() {
+    clearTimeout(pollTimer);
+    if (!current || current.error) return;
+    var w = null;
+    try { w = stage.contentWindow; } catch (e) {}
+    if (w && w.performance) {
+      var p = w.__p;
+      if (p) {
+        current.probe = { t0: p.t0, fcp: p.fcp, done: p.done, yields: p.yields };
+        if (p.done && !current.settled) {
+          /* wait one quiet beat after the last enhancement so the number reflects
+             a painted state, not the moment the render loop exited */
+          if (!current.doneAt) current.doneAt = performance.now();
+          else if (performance.now() - current.doneAt > 250) {
+            current.settled = performance.now() - current.t0;
+            clearTimeout(settleTimer);
+          }
+        }
+      }
+      collectHeights(w);
+      collectResources(w);
+    }
+    render();
+    if (!current.settled) pollTimer = setTimeout(poll, 100);
+  }
+  function scheduleSettle() {
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(function () {
+      if (current && !current.settled) {
+        current.settled = performance.now() - current.t0;
+        current.timedOut = true;
+      }
+      render();
+    }, 20000);
+  }
+  function collectHeights(w) {
+    var h = w.document && w.document.documentElement ? w.document.documentElement.scrollHeight : 0;
+    if (h && (!current.heights.length || current.heights[current.heights.length - 1].h !== h)) {
+      current.heights.push({ t: performance.now() - current.t0, h: h });
+    }
+  }
+  function collectResources(w) {
+    resources = w.performance.getEntriesByType('resource').map(function (r) {
+      return {
+        name: r.name.replace(/^https?:\/\/[^/]+\//, '').slice(0, 46),
+        start: r.startTime, dur: r.duration, xfer: r.transferSize, dec: r.decodedBodySize
+      };
+    });
+  }
+
+  /* ---------- output ---------- */
+  function fmt(ms) { return (ms === null || ms === undefined) ? '-' : Math.round(ms) + ' ms'; }
+  function table(rows, head) {
+    if (!rows.length) return '<p class="hint">none</p>';
+    var h = '<table><tr><th>' + head.join('</th><th>') + '</th></tr>';
+    rows.forEach(function (r) {
+      h += '<tr>' + r.map(function (c) { return '<td>' + c + '</td>'; }).join('') + '</tr>';
+    });
+    return h + '</table>';
+  }
+  function render() {
+    if (!current) { out.innerHTML = ''; return; }
+    if (current.error) { out.innerHTML = '<div id="err">' + current.error + '</div>'; return; }
+    var c = current.cfg, p = current.probe;
+    var shot = performance.now() - current.t0;
+    var html = '';
+
+    html += '<h2>Result</h2>';
+    html += table([
+      ['first contentful paint', fmt(p && p.fcp)],
+      ['parse + enhancement complete', fmt(p && p.done)],
+      ['settled (250ms quiet after done)', fmt(current.settled) + (current.timedOut ? '  (timeout)' : '')],
+      ['elapsed', fmt(shot)],
+      ['height changes', String(current.heights.length)],
+      ['final height', current.heights.length ? current.heights[current.heights.length - 1].h + ' px' : '-'],
+      ['progressive?', (c.chunk === '' || Number(c.chunk) <= 0)
+        ? 'never chunks (threshold ' + (c.chunk === '' ? SHIPPED_CHUNK : c.chunk) + ')'
+        : 'chunks docs >= ' + c.chunk + ' chars'],
+      ['frame budget', (c.budget === '' ? SHIPPED_BUDGET : c.budget) + ' ms'],
+      ['libs', c.libs + (c.libs === 'cdnjs' ? ' (cross-origin)' : ' (same origin)')],
+      ['mermaid source', c.mermaid]
+    ], ['metric', 'value']);
+
+    var blocked = resources.filter(function (r) { return /\.js$/.test(r.name) && r.dec === 0; });
+    if (blocked.length) {
+      html += '<h2>Requested but never arrived (0 bytes decoded)</h2><div id="err">' +
+        blocked.map(function (r) { return r.name; }).join('\n') + '</div>';
+    }
+
+    html += '<h2>Height over time (one step per height change)</h2><canvas id="chart"></canvas>';
+    html += '<h2>Child resources</h2>';
+    html += table(resources.slice().sort(function (a, b) { return a.start - b.start; })
+      .map(function (r) {
+        return [r.name, fmt(r.start), fmt(r.dur),
+          r.xfer ? (r.xfer / 1024).toFixed(1) + ' KB' : '-',
+          r.dec ? (r.dec / 1024).toFixed(1) + ' KB' : '-'];
+      }), ['resource', 'start', 'duration', 'xfer', 'decoded']);
+
+    out.innerHTML = html;
+    drawChart(current.heights, current.settled);
+  }
+
+  function drawChart(points, settled) {
+    var cv = el('chart');
+    if (!cv || !points.length) return;
+    var dpr = window.devicePixelRatio || 1;
+    var w = cv.clientWidth, h = cv.clientHeight;
+    cv.width = w * dpr; cv.height = h * dpr;
+    var g = cv.getContext('2d');
+    g.scale(dpr, dpr);
+    g.clearRect(0, 0, w, h);
+    var maxT = Math.max(settled || 0, points[points.length - 1].t, 1);
+    var maxH = points[points.length - 1].h || 1;
+    g.strokeStyle = getComputedStyle(document.body).color;
+    g.globalAlpha = 0.35;
+    g.beginPath();
+    g.moveTo(1, h - 2);
+    points.forEach(function (p) {
+      g.lineTo((p.t / maxT) * (w - 2) + 1, h - (p.h / maxH) * (h - 6) - 3);
+    });
+    g.stroke();
+    g.globalAlpha = 1;
+    g.font = '10px ui-monospace, Menlo, monospace';
+    g.fillText('0', 3, h - 3);
+    var label = Math.round(maxT) + ' ms';
+    g.fillText(label, w - g.measureText(label).width - 4, h - 3);
+  }
+
+  /* ---------- wiring ---------- */
+  function run() {
+    var c = configFromForm();
+    history.replaceState(null, '', writeConfig(c));
+    startRun(c);
+  }
+  el('run').addEventListener('click', run);
+  el('reset').addEventListener('click', function () { applyConfigToForm(FIELDS); run(); });
+  el('copy').addEventListener('click', function () {
+    var u = location.href;
+    var done = function (ok) { status.textContent = ok ? 'URL copied' : u; };
+    if (navigator.clipboard) navigator.clipboard.writeText(u).then(function () { done(true); }, function () { done(false); });
+    else done(false);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.quick button[data-th]'), function (b) {
+    b.addEventListener('click', function () { el('chunk').value = b.getAttribute('data-th'); run(); });
+  });
+  el('threshold-default').addEventListener('click', function () { el('chunk').value = ''; run(); });
+  ['doc', 'libs', 'chunk', 'budget', 'mermaid', 'toc'].forEach(function (f) {
+    el(f).addEventListener('change', run);
+  });
+
+  applyConfigToForm(readConfig());
+  run();
+})();
+</script>
+</body>
+</html>

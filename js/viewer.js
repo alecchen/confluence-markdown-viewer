@@ -479,6 +479,11 @@
      gzipped by Apache, and no per-lib cross-origin round trip before the first
      render. */
   var MERMAID_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js';
+  /* ?mermaid=<url> points the lazy load somewhere else - a local mirror, or a
+     copy vendored in lib/. Only absolute http(s) URLs are accepted, so a query
+     string cannot turn this into a path traversal. */
+  var mermaidParam = params.get('mermaid');
+  if (mermaidParam && /^https?:\/\//i.test(mermaidParam)) MERMAID_CDN = mermaidParam;
   var mermaidBlocks = [];
   var lastMermaidTheme = null;
   var mermaidPromise = null;
@@ -897,6 +902,21 @@
        first chunk costs nothing measurable and is what buys the visible win. */
   var CHUNK_THRESHOLD = 150000;   /* chars; below this a single synchronous parse */
   var FRAME_BUDGET = 25;          /* ms of parsing per yielded frame */
+  /* ?chunk=N (0 disables chunking entirely) and ?budget=N let a reader tune the
+     progressive render on a real document without editing and redeploying this
+     file. Validation rejects junk; an empty value is 'not set', not 0. 0 is a
+     special case rather than a literal threshold, because a threshold of 0 would
+     mean "everything chunks" - the opposite of what 0 reads as. */
+  var chunkParam = params.get('chunk');
+  if (chunkParam !== null && chunkParam !== '') {
+    var chunkNum = Number(chunkParam);
+    if (isFinite(chunkNum) && chunkNum >= 0) CHUNK_THRESHOLD = chunkNum === 0 ? Infinity : chunkNum;
+  }
+  var budgetParam = params.get('budget');
+  if (budgetParam !== null && budgetParam !== '') {
+    var budgetNum = Number(budgetParam);
+    if (isFinite(budgetNum) && budgetNum >= 1) FRAME_BUDGET = budgetNum;
+  }
 
   /* Split lexed block tokens at top-level headings. A heading always closes the
      block before it, so no construct is cut in half: a list or table cannot

@@ -289,6 +289,75 @@ one never navigates the embedded iframe away from the Confluence page. Fragment 
   `github` in light, `nord` in dark; an explicit scheme applies to both themes.
   E.g. `viewer.html?src=published/foo.md&code=nord`.
 
+### Tuning parameters
+
+These three exist so the progressive render can be measured against a real
+document without editing and redeploying `js/viewer.js`. They change *when* work
+happens, never *what* it produces — `test/tuning-params.test.js` asserts both
+paths yield the same document.
+
+- `?chunk=N` — the character threshold at which a document starts rendering
+  progressively, replacing the shipped `CHUNK_THRESHOLD` (150000). `?chunk=0`
+  turns chunking off entirely. The value is the string length of the markdown
+  (`String.length`, UTF-16 units), **not** the file's byte size — for a
+  Chinese or Japanese document `wc -c` reads about three times the number the
+  viewer compares, so use `wc -m` if you want to predict it from a shell.
+- `?budget=N` — milliseconds of parsing per yielded frame, replacing
+  `FRAME_BUDGET` (25). A smaller value yields more often, which is only useful
+  for forcing the progressive path to be visible on a document that would
+  otherwise finish in one frame.
+- `?mermaid=<url>` — where to load mermaid from, replacing the pinned cdnjs URL.
+  Only an absolute `http(s)` URL is accepted. Point it at a local mirror or
+  `lib/mermaid.min.js` to keep a diagram doc resolving when the public CDN is
+  unreachable (see Vendoring mermaid).
+
+### Debug page
+
+`debug.html` drives a real viewer with those knobs, side by side with the choice
+of script source, and reports the timings. Open it from the deployed viewer (or
+any static server rooted at this repo) and it needs no setup: it fetches the
+real `viewer.html` and `js/viewer.js` and rewrites them, so it measures the
+shipped code rather than a copy.
+
+| control | what it does |
+| --- | --- |
+| Doc | any markdown reachable from the viewer, e.g. `README.md` or `published/foo.md` |
+| Libs | load the three libs from `lib/` (same origin) or from their pinned cdnjs URLs |
+| Threshold | `?chunk=` for the child, with 0 / 1k / 5k / 50k / 150k shortcuts |
+| Frame budget | `?budget=` for the child |
+| Mermaid | load mermaid from cdnjs, from `lib/mermaid.min.js`, or leave the shipped default |
+
+Every control rides on the page's own query string, so a comparison is a URL you
+can reload or hand to someone else - e.g.
+`debug.html?libs=cdnjs&chunk=5000&doc=published/big.md`.
+
+It reports first contentful paint, the moment enhancement finished, height
+changes over time, and the child's resource timings (start, duration, bytes over
+the wire and decoded). A `.js` resource listed with 0 bytes decoded is the
+signature of a script that was requested and never arrived — which is how a
+blocked public CDN shows up on an internal-only network.
+
+The child is a `srcdoc` iframe so it stays same-origin and the page can read its
+timings directly. That has two consequences worth knowing if you edit the page:
+a `srcdoc` document's own `location` is `about:srcdoc`, so `location.search` is
+empty and the page passes options through a hook instead; and `js/viewer.js` has
+to be inlined rather than referenced, which `test/debug-page.test.js` guards.
+
+### Vendoring mermaid
+
+Mermaid is the one library that is not vendored, because it is 1MB gzipped and
+only docs containing a ```` ```mermaid ```` block pay for it. On a network
+without route to `cdnjs.cloudflare.com` those docs wait for a request that never
+arrives. To vendor it:
+
+```sh
+cp node_modules/mermaid/dist/mermaid.min.js lib/mermaid.min.js
+```
+
+Then either point the `?mermaid=` parameter at it, or change `MERMAID_CDN` in
+`js/viewer.js`. Serving it same-origin costs every reader the extra bytes on
+first load only if a diagram doc is opened, since the load is still lazy.
+
 ## Code blocks and diagrams
 
 - Every code block gets a **Copy** button (top-right, on hover; always visible on
@@ -462,12 +531,12 @@ deployed.
 
 ```sh
 npm install        # dev-only; installs jsdom + the packages vendored into lib/
-npm test           # node:test — 95 assertions across the README's features
+npm test           # node:test — 106 assertions across the README's features
 ```
 
 - One test file per feature area in `test/` (`markdown-rendering`, `headings-toc`,
   `asset-paths`, `image-sizes`, `code-copy-mermaid`, `gantt-timezone`, `themes`,
-  `messaging`, `params`, `render-chunking`).
+  `messaging`, `params`, `render-chunking`, `tuning-params`, `debug-page`).
 - The libs under test come from `package.json`; `alignment.test.js` fails if
   `lib/` drifts from the installed packages or the mermaid CDN pin drifts.
 - Not covered here: real mermaid SVG rendering, real clipboard writes, and the
