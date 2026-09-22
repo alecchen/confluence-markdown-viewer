@@ -70,7 +70,7 @@
 
   <label for="mermaid">Mermaid</label>
   <select id="mermaid">
-    <option value="skip">default (cdnjs, as shipped)</option>
+    <option value="skip">default (= cdnjs, same URL)</option>
     <option value="local">local (lib/mermaid.min.js)</option>
     <option value="cdnjs">cdnjs (explicit)</option>
   </select>
@@ -160,7 +160,20 @@
     if (c.chunk !== '') p.set('chunk', c.chunk);
     if (c.budget !== '') p.set('budget', c.budget);
     if (c.toc) p.set('toc', c.toc);
-    if (c.mermaid === 'local') p.set('mermaid', new URL('lib/mermaid.min.js', location.href).href);
+    /* "local" points at a file this repo does not ship - mermaid is deliberately
+       not vendored. Say so instead of building a URL that 404s, which is what an
+       earlier version did: the control looked inert because the request failed
+       rather than because it changed nothing. */
+    if (c.mermaid === 'local') {
+      if (localMermaidExists) {
+        p.set('mermaid', new URL('lib/mermaid.min.js', location.href).href);
+      } else {
+        missing.push('lib/mermaid.min.js does not exist - mermaid is not vendored. ' +
+          'Copy node_modules/mermaid/dist/mermaid.min.js there (see README, "Vendoring mermaid"), ' +
+          'or pick cdnjs. The default already loads the pinned cdnjs URL, so this control ' +
+          'cannot show a difference until that file exists.');
+      }
+    }
     if (c.mermaid === 'cdnjs') p.set('mermaid', MERMAID_CDN);
     return p.toString();
   }
@@ -171,18 +184,20 @@
      location.search is empty and history.replaceState throws a SecurityError, so
      the child cannot give itself a query string. The probe therefore hands the
      options to viewer.js directly through the window.__mdvParams hook that
-     buildChild splices into its one URLSearchParams line. */
+     buildChild splices into its one URLSearchParams line.
+
+     There is deliberately no PerformanceObserver here. Under a blocking
+     synchronous parse a paint observer's callback does not run until the parse
+     finishes, so the timestamp it reports is the moment the callback was
+     *delivered*, not the moment the paint happened - on a 1.3MB document that
+     read 700ms for a paint the browser recorded at 56ms. The page reads the real
+     value out of performance.getEntriesByType('paint') instead, and the headline
+     metric is firstDom below, which is stamped synchronously at the moment
+     content enters the document. */
   function probeScript(q) {
     return [
       '<script>window.__mdvParams=new URLSearchParams(' + JSON.stringify(q).replace(/</g, '\\u003c') + ');<\/script>',
-      '<script>window.__p={t0:performance.now(),fcp:null,done:null,yields:0};<\/script>',
-      '<script>',
-      '(function(){',
-      '  try{ new PerformanceObserver(function(l){ l.getEntries().forEach(function(e){',
-      '    if(e.name==="first-contentful-paint" && window.__p.fcp===null) window.__p.fcp=performance.now();',
-      '  }); }).observe({type:"paint",buffered:true}); }catch(e){}',
-      '})();',
-      '<\/script>'
+      '<script>window.__p={t0:performance.now(),firstDom:null,done:null};<\/script>'
     ].join('\n');
   }
 
@@ -215,9 +230,19 @@
     var hooked = viewerJs.replace(HOOK_FROM,
       'var params = window.__mdvParams || new URLSearchParams(location.search);');
 
-    /* Mark the moment each render path finishes. The two `rendered = true;`
-       assignments are indented differently (6 spaces in renderChunked, 4 in
-       render), so each anchored replace hits exactly one. */
+    /* Mark the moment each render path puts content in the document, and the
+       moment it finishes. Both are stamped synchronously inside viewer.js so the
+       number is when the work happened, not when an observer noticed.
+         firstDom - the one-shot innerHTML assignment, or the first chunk append
+         done     - after every enhancer has run (see the two rendered = true) */
+    var FIRST = /^(\s*)(contentEl\.innerHTML = marked\.parse\(text\);)$/m;
+    var FIRST_CHUNK = /^(\s*)(contentEl\.appendChild\(frag\);)$/m;
+    if (!FIRST.test(hooked) || !FIRST_CHUNK.test(hooked)) {
+      throw new Error('could not find the content insertion points in js/viewer.js');
+    }
+    hooked = hooked.replace(FIRST, '$1$2 $1window.__p.firstDom = performance.now();')
+                   .replace(FIRST_CHUNK, '$1$2 $1if (!window.__p.firstDom) window.__p.firstDom = performance.now();');
+
     var DONE = 'window.__p.done = performance.now();';
     if (!/^      rendered = true;$/m.test(hooked) || !/^    rendered = true;$/m.test(hooked)) {
       throw new Error('could not find both rendered = true markers in js/viewer.js');
@@ -231,9 +256,14 @@
 
   /* ---------- run state ---------- */
   var current = null, settleTimer = null, pollTimer = null, resources = [];
+  /* Probed once at load: mermaid is deliberately not vendored, so the "local"
+     choice points at a file that is usually absent. */
+  var localMermaidExists = false;
+  var missing = [];
 
   function startRun(c) {
     clearTimeout(settleTimer); clearTimeout(pollTimer);
+    missing = [];
     current = {
       cfg: c, heights: [], t0: performance.now(), settled: null, timedOut: false,
       error: null, probe: null, doneAt: 0
@@ -273,7 +303,12 @@
     if (w && w.performance) {
       var p = w.__p;
       if (p) {
-        current.probe = { t0: p.t0, fcp: p.fcp, done: p.done, yields: p.yields };
+        current.probe = { t0: p.t0, firstDom: p.firstDom, done: p.done };
+        /* The real paint entries, straight from the child's timeline - see the
+           note in probeScript for why this is not read from an observer. */
+        current.paints = w.performance.getEntriesByType('paint').map(function (e) {
+          return { name: e.name, at: e.startTime };
+        }).filter(function (e) { return e.name === 'first-contentful-paint'; })[0] || null;
         if (p.done && !current.settled) {
           /* wait one quiet beat after the last enhancement so the number reflects
              a painted state, not the moment the render loop exited */
@@ -313,6 +348,10 @@
         start: r.startTime, dur: r.duration, xfer: r.transferSize, dec: r.decodedBodySize
       };
     });
+    /* The markdown's own fetched size, so the threshold comparison below is made
+       against the number viewer.js compares (UTF-16 length), not a guess. */
+    var doc = resources.filter(function (r) { return /\.md$/.test(r.name); })[0];
+    if (doc) current.doc = { chars: doc.dec, bytes: doc.xfer };
   }
 
   /* ---------- output ---------- */
@@ -328,30 +367,35 @@
   function render() {
     if (!current) { out.innerHTML = ''; return; }
     if (current.error) { out.innerHTML = '<div id="err">' + current.error + '</div>'; return; }
-    var c = current.cfg, p = current.probe;
+    var c = current.cfg, p = current.probe, cur = current;
     var shot = performance.now() - current.t0;
     var html = '';
 
     html += '<h2>Result</h2>';
     html += table([
-      ['first contentful paint', fmt(p && p.fcp)],
-      ['parse + enhancement complete', fmt(p && p.done)],
+      ['first content in the DOM', fmt(p && p.firstDom) + '   (parse + insert)'],
+      ['all enhancement done', fmt(p && p.done)],
+      ['first contentful paint (real entry)', current.paints ? fmt(current.paints.at) : '-'],
       ['settled (250ms quiet after done)', fmt(current.settled) + (current.timedOut ? '  (timeout)' : '')],
       ['elapsed', fmt(shot)],
       ['height changes', String(current.heights.length)],
       ['final height', current.heights.length ? current.heights[current.heights.length - 1].h + ' px' : '-'],
+      ['doc size (chars / bytes)', cur.doc ? cur.doc.chars + ' / ' + cur.doc.bytes : 'not loaded'],
       ['progressive?', (c.chunk === '' || Number(c.chunk) <= 0)
         ? 'never chunks (threshold ' + (c.chunk === '' ? SHIPPED_CHUNK : c.chunk) + ')'
-        : 'chunks docs >= ' + c.chunk + ' chars'],
+        : cur.doc && cur.doc.chars
+          ? (cur.doc.chars >= Number(c.chunk) ? 'yes - ' + cur.doc.chars + ' chars >= ' + c.chunk : 'no - doc is only ' + cur.doc.chars + ' chars, under the ' + c.chunk + ' threshold')
+          : 'chunks docs >= ' + c.chunk + ' chars'],
       ['frame budget', (c.budget === '' ? SHIPPED_BUDGET : c.budget) + ' ms'],
       ['libs', c.libs + (c.libs === 'cdnjs' ? ' (cross-origin)' : ' (same origin)')],
       ['mermaid source', c.mermaid]
     ], ['metric', 'value']);
 
     var blocked = resources.filter(function (r) { return /\.js$/.test(r.name) && r.dec === 0; });
-    if (blocked.length) {
-      html += '<h2>Requested but never arrived (0 bytes decoded)</h2><div id="err">' +
-        blocked.map(function (r) { return r.name; }).join('\n') + '</div>';
+    if (missing.length || blocked.length) {
+      html += '<h2>The configuration cannot show a difference</h2><div id="err">' +
+        missing.concat(blocked.map(function (r) { return r.name + '  (requested, 0 bytes decoded)'; }))
+          .join('\n') + '</div>';
     }
 
     html += '<h2>Height over time (one step per height change)</h2><canvas id="chart"></canvas>';
@@ -416,7 +460,10 @@
   });
 
   applyConfigToForm(readConfig());
-  run();
+  /* One HEAD for the optional local mermaid copy, before the first run. */
+  fetch('lib/mermaid.min.js', { method: 'HEAD' }).then(function (r) {
+    localMermaidExists = !!r.ok;
+  }).catch(function () {}).then(run);
 })();
 </script>
 </body>
