@@ -41,3 +41,22 @@ test('size syntax inside a code fence is left alone', async () => {
   assert.equal(h.d.querySelector('#content img'), null);
   assert.ok(h.d.querySelector('#content pre code').textContent.includes('=50%'));
 });
+
+test('the viewer does not invent dimensions for an image', async () => {
+  /* Reserving an image's box before its bytes arrive was tried and abandoned, so
+     this asserts it stays abandoned. The measurements, for the next person who
+     has the idea:
+       - `aspect-ratio: attr(width) / attr(height)` is dropped by Chromium - the
+         computed value stays `auto` and a pending image is 300x0.
+       - writing height on load changes nothing: an image that has loaded already
+         exposes its own ratio, so the box was stable across a later reflow either
+         way (A/B: one document height change in both builds).
+       - a HEAD request returns headers, not dimensions, so learning the ratio
+         still requires downloading the image.
+     An author who wants a reserved box declares width AND height, which the
+     browser honours on its own. */
+  const h = await boot({ markdown: '![a](img.png)\n' });
+  const img = h.d.querySelector('#content img');
+  assert.equal(img.getAttribute('width'), null);
+  assert.equal(img.getAttribute('height'), null);
+});
