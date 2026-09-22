@@ -31,6 +31,21 @@ test('code blocks are highlighted by highlight.js', async () => {
   assert.ok(code.classList.contains('hljs'), 'hljs class applied');
 });
 
+/* highlight.js auto-detection runs every registered grammar over an unlabeled
+   block and bails on the first line matching more than one of them, so a long
+   log dump costs ~130ms of blocking work. Untagged fences therefore render as
+   plain code - they keep the code background, they are just not tokenized. */
+test('a fence with no language tag is not auto-detected, and still renders as code', async () => {
+  const h = await boot({ markdown: '```\n2026-01-01 INFO some log line\nplain text, no language given\n```\n' });
+  const code = h.d.querySelector('#content pre code');
+  assert.ok(code, 'code element exists');
+  assert.equal(code.className, '', 'no hljs class: no detection ran');
+  assert.match(code.textContent, /plain text, no language given/);
+  const pre = h.d.querySelector('#content pre');
+  assert.ok(pre, 'pre keeps the code block styling');
+  assert.equal(h.d.querySelectorAll('#content .copy-btn').length, 1, 'still gets a Copy button');
+});
+
 test('paragraph text is rendered', async () => {
   const h = await boot({ markdown: 'Hello world' });
   assert.equal(h.d.querySelector('#content p').textContent, 'Hello world');

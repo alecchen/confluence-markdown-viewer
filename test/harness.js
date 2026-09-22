@@ -4,12 +4,20 @@
 const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('jsdom');
-const marked = require('marked');
-const markedGfmHeadingId = require('marked-gfm-heading-id');
-const hljs = require('highlight.js');
 
 const VIEWER_JS = fs.readFileSync(path.join(__dirname, '..', 'js', 'viewer.js'), 'utf8');
 const VIEWER_URL = 'http://localhost/viewer/viewer.html?src=published/test.md';
+
+/* The three libs viewer.html loads eagerly are vendored in lib/. Eval the shipped
+   files the way the page does, rather than require() the npm packages, so a test
+   exercises the bytes that deploy - and a UMD bundle that only breaks under
+   `eval` in a browser is caught here. `bundle` is what viewer.html's script tags
+   name, `global` the window property that bundle assigns. */
+const VENDORED = [
+  { bundle: 'marked.min.js', global: 'marked' },
+  { bundle: 'marked-gfm-heading-id.min.js', global: 'markedGfmHeadingId' },
+  { bundle: 'highlight.min.js', global: 'hljs' },
+];
 
 /* Boot a viewer instance.
    opts:
@@ -45,11 +53,14 @@ async function boot(opts = {}) {
   const w = dom.window;
   const d = w.document;
 
-  /* Libraries the browser loads from cdnjs, injected as window globals so the
-     viewer's bare `marked` / `hljs` identifiers resolve through jsdom. */
-  w.marked = marked;
-  w.markedGfmHeadingId = markedGfmHeadingId;
-  w.hljs = hljs;
+  /* The libs, loaded as the page loads them: eval each vendored bundle in the
+     window, so the UMD wrapper assigns its own global exactly as it does in a
+     browser. `outside-only` means jsdom runs no page script itself, so this is
+     the order viewer.html produces - libs first, then viewer.js below. */
+  for (const lib of VENDORED) {
+    w.eval(fs.readFileSync(path.join(__dirname, '..', 'lib', lib.bundle), 'utf8'));
+    if (!w[lib.global]) throw new Error(`lib/${lib.bundle} did not set window.${lib.global}`);
+  }
 
   /* Shims for APIs jsdom does not implement. */
   w.matchMedia = (query) => ({

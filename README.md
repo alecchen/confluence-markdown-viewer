@@ -4,8 +4,8 @@
 
 A static, reusable Markdown viewer for embedding in Confluence. Markdown stays the single source of truth in Git; this repo is only the renderer.
 
-- No build step — the served site is plain static HTML/CSS/JS (dev-only test tooling lives in `package.json`, never deployed).
-- marked.js + highlight.js from **cdnjs only** (jsDelivr is blocked in the Confluence environment).
+- No build step — the served site is plain static HTML/CSS/JS (`lib/` holds the parser and highlighter, copied verbatim from npm; dev-only test tooling lives in `package.json`, never deployed).
+- marked.js + highlight.js vendored in `lib/`, served same-origin. jsDelivr is blocked in the Confluence environment and a public-CDN fetch per lib costs a connection before anything renders. Mermaid is the one remaining CDN dependency — 1MB, loaded lazily, only for docs with a diagram.
 - GitHub-flavored Markdown styling, GitHub-style tables.
 - Confluence-style heading links: hover a heading and click the chain icon to copy a link to that section.
 - Solarized code highlighting.
@@ -23,6 +23,7 @@ public_html/username/
     viewer.html        <- the viewer: one reusable page
     css/viewer.css
     js/viewer.js
+    lib/               <- marked, marked-gfm-heading-id, highlight.js (vendored, same-origin)
     published/         <- served markdown (gitignored; plain files, NFS-backed)
     .htaccess          <- deny /.git/ and dotfiles
   drafts/              <- separate git repo, drafts only (outside web root)
@@ -293,6 +294,11 @@ one never navigates the embedded iframe away from the Confluence page. Fragment 
 - Every code block gets a **Copy** button (top-right, on hover; always visible on
   touch). Copying uses `navigator.clipboard` with a legacy fallback, so the embed
   block needs the `allow="clipboard-write"` attribute on the iframe.
+- Tag a fence with its language (```` ```js ````) to get syntax colors. A fence with
+  no language tag renders as plain code: highlight.js would otherwise *guess* at
+  the language, which means running every one of its 36 grammars over the block,
+  and a long log dump costs ~130ms of blocking work before the doc can paint (see
+  Performance). Untagged blocks keep the code background and the Copy button.
 - Fenced blocks tagged ```` ```mermaid ```` render as diagrams. Mermaid (cdnjs) loads lazily only when a
   doc contains a mermaid block, and re-renders when the page theme toggles.
 
@@ -355,12 +361,48 @@ git archive --format=tar HEAD | tar -x -C ~/public_html/username/viewer
 
 Re-run the archive command to update (it replaces file contents).
 
-## Dependencies (cdnjs, pinned)
+## Dependencies
 
-- marked 12.0.2 — https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js
-- marked-gfm-heading-id 3.2.0 — https://cdnjs.cloudflare.com/ajax/libs/marked-gfm-heading-id/3.2.0/index.umd.min.js
-- highlight.js 11.9.0 — https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js
-- mermaid 10.9.1 (lazy, only when a ```` ```mermaid ```` block is present) — https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js
+The three libs the page needs before the first render are **vendored in `lib/`**,
+served from the same origin as the viewer. Each of them used to be a `cdnjs`
+script tag, which cost one cross-origin connection per lib before anything could
+render; the copies are byte-identical to the npm packages pinned in
+`package.json` (`test/alignment.test.js` fails if they drift, and `lib/` is
+unminified source, so the vendored files are reviewable).
+
+```sh
+npm install && ./sync-libs.sh   # after bumping a version in package.json
+npm test                        # alignment test fails on a stale lib/
+```
+
+- marked 12.0.2 — `lib/marked.min.js`
+- marked-gfm-heading-id 3.2.0 — `lib/marked-gfm-heading-id.min.js`
+- highlight.js 11.9.0, the 36-language "common" build — `lib/highlight.min.js`
+- mermaid 10.9.1 stays on cdnjs and is still **lazy**: 1MB, and only a doc with a
+  ```` ```mermaid ```` block pays for it — https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js
+
+## Performance
+
+What delayed the first render, in the order it showed up:
+
+1. **Untagged code fences.** highlight.js auto-detection (`highlightAuto`) runs
+   every registered grammar over the block and stops at the first line that looks
+   like more than one of them; with the 36-language build a 50-line log fence
+   costs ~130ms. A doc with eight of them — a plausible runbook — spent ~1s
+   highlighting before it painted anything. Fixed by highlighting only fences the
+   author tagged with a language (`highlightCode()` in `js/viewer.js`).
+2. **Three cross-origin script fetches** before the first render, each paying its
+   own connection setup. Fixed by vendoring them in `lib/` (above).
+3. **Mermaid**, if the doc has a diagram: 1MB, but lazy and only for docs that
+   ask for it, so it is left on the CDN.
+
+After (1) and (2), the doc renders as soon as `viewer.js` and the markdown arrive.
+
+The theme is pushed by the embed script on iframe `load` and every 1.5s after, so
+a theme toggle shows up in the viewer up to 1.5s later. That is a delay a reader
+can see if they flip Confluence's theme with a doc open; tightening it means
+lowering the `setInterval(sendNow, 1500)` in the embed block, which trades
+against the parent page doing that work on a timer.
 
 ## Testing
 
@@ -369,15 +411,15 @@ behavior against the features documented above. It is dev-only: nothing here is
 deployed.
 
 ```sh
-npm install        # dev-only; installs jsdom + the pinned cdnjs libs
-npm test           # node:test — 40+ assertions across the README's features
+npm install        # dev-only; installs jsdom + the packages vendored into lib/
+npm test           # node:test — 90+ assertions across the README's features
 ```
 
 - One test file per feature area in `test/` (`markdown-rendering`, `headings-toc`,
   `asset-paths`, `image-sizes`, `code-copy-mermaid`, `gantt-timezone`, `themes`,
   `messaging`, `params`).
-- The libs under test come from `package.json` pinned to the exact cdnjs versions;
-  `alignment.test.js` fails if the two drift apart.
+- The libs under test come from `package.json`; `alignment.test.js` fails if
+  `lib/` drifts from the installed packages or the mermaid CDN pin drifts.
 - Not covered here: real mermaid SVG rendering, real clipboard writes, and the
   live iframe↔parent messaging between two real documents (browser-only). The
   publish hook and `.htaccess` are deployment concerns, not viewer behavior.

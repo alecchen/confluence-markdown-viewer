@@ -453,7 +453,11 @@
     });
   }
 
-  /* ---------- mermaid diagrams (lazy-loaded from cdnjs) ---------- */
+  /* ---------- mermaid diagrams (lazy, from the CDN) ----------
+     1MB, only docs with a diagram pay for it, so it stays off-origin. The three
+     libs viewer.html loads eagerly are vendored in lib/ instead: same-origin,
+     gzipped by Apache, and no per-lib cross-origin round trip before the first
+     render. */
   var MERMAID_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js';
   var mermaidBlocks = [];
   var lastMermaidTheme = null;
@@ -794,14 +798,25 @@
     });
   }
 
+  /* ---------- code highlighting ---------- */
+  /* Only fences the author tagged with a language. An unlabeled fence makes
+     highlight.js guess, and a guess runs every one of its 36 grammars over the
+     block and stops at the first line that matches more than one of them - a
+     50-line log dump costs ~130ms, and a doc full of them blocks the first paint
+     for a second or more. Untagged blocks keep the plain code background, which
+     is how the author asked for them to be read anyway. */
+  function highlightCode() {
+    contentEl.querySelectorAll('pre code[class*="language-"]').forEach(function (el) {
+      if (el.classList.contains('language-mermaid')) return;
+      hljs.highlightElement(el);
+    });
+  }
+
   function render(text) {
     contentEl.innerHTML = marked.parse(text);
     hoistPreviewTitles();
     rewriteAssetPaths();
-    contentEl.querySelectorAll('pre code').forEach(function (el) {
-      if (el.classList.contains('language-mermaid')) return;
-      hljs.highlightElement(el);
-    });
+    highlightCode();
     collectMermaid();
     enhanceHeadings();
     setLinkTargets();
@@ -817,9 +832,9 @@
   }
 
   marked.setOptions({ gfm: true, breaks: false, pedantic: false });
-  /* GitHub-style heading ids come from marked-gfm-heading-id (cdnjs). If it
-     ever fails to load, marked still emits its own ids, so anchors and the TOC
-     keep working. */
+  /* GitHub-style heading ids come from marked-gfm-heading-id (lib/). If it ever
+     fails to load, marked still emits its own ids, so anchors and the TOC keep
+     working. */
   if (window.markedGfmHeadingId && typeof window.markedGfmHeadingId.gfmHeadingId === 'function') {
     marked.use(window.markedGfmHeadingId.gfmHeadingId());
   }
