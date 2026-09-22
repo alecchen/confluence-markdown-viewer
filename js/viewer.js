@@ -916,6 +916,23 @@
     return chunks;
   }
 
+  /* Yield to the browser between budgeted frames of work.
+     MessageChannel, not setTimeout or requestAnimationFrame:
+       - setTimeout(0) is throttled to roughly once per second in a hidden tab and
+         in some off-screen cases, which would make a backgrounded viewer crawl
+         (a large doc needs on the order of a dozen frames). A MessageChannel port
+         callback is a task the browser does not apply that throttle to - it is the
+         same mechanism React's scheduler uses for exactly this reason.
+       - requestAnimationFrame would simply stop in a hidden tab, and it is absent
+         in the jsdom test harness.
+     Falls back to setTimeout where MessageChannel is unavailable. */
+  var yieldChannel = (typeof MessageChannel === 'function') ? new MessageChannel() : null;
+  function yieldToBrowser(fn) {
+    if (!yieldChannel) { setTimeout(fn, 0); return; }
+    yieldChannel.port1.onmessage = function () { yieldChannel.port1.onmessage = null; fn(); };
+    yieldChannel.port2.postMessage(0);
+  }
+
   function renderChunked(text) {
     if (window.markedGfmHeadingId && markedGfmHeadingId.resetHeadings) {
       markedGfmHeadingId.resetHeadings();
@@ -964,10 +981,7 @@
       reportHeight();
 
       if (i < chunks.length) {
-        /* One yield per budgeted frame. setTimeout rather than rAF so a hidden
-           iframe (a Confluence tab in the background) still makes progress, and
-           so this works where rAF is absent. */
-        setTimeout(step, 0);
+        yieldToBrowser(step);
         return;
       }
 

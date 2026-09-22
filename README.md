@@ -429,9 +429,19 @@ budget**, not per chunk: yielding after every chunk does not merely cost some
 overhead, it is far slower than not chunking at all. Every yield costs a frame
 (~16ms), so a 2400-heading document that yielded per chunk spent 36 seconds in
 frame waits. Chunks are now pulled continuously until `FRAME_BUDGET` (25ms) is
-spent, with one yield per frame after that. The iframe height is reported once per
-frame too, so the page grows as chunks land instead of jumping from the loading
-height to full height at the end.
+spent, with one yield per frame after that.
+
+The yield itself uses a `MessageChannel`, not `setTimeout` or `requestAnimationFrame`:
+
+- `setTimeout(0)` is throttled to roughly once per second in a hidden tab, so a
+  reader who opens a large doc and switches away would come back to a render that
+  had barely advanced. It also costs ~5ms per call even when unthrottled, against
+  ~0ms for a port callback.
+- `requestAnimationFrame` stops entirely in a hidden tab, and does not exist in the
+  jsdom test harness.
+
+The iframe height is reported once per frame, so the page grows as chunks land
+instead of jumping from the loading height to full height at the end.
 
 `test/render-chunking.test.js` also pins the boundary rule against an independent
 text-based splitter, so the two cannot silently disagree.

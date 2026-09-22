@@ -161,3 +161,25 @@ test('the chunk threshold is above the docs the rest of the suite renders', () =
   assert.ok(Number(m[1]) >= 100000,
     'threshold is high enough that ordinary docs keep the synchronous one-shot path');
 });
+
+test('the progressive path yields with MessageChannel, and still finishes without it', async () => {
+  /* setTimeout(0) is throttled to ~1/sec in a hidden tab, which would make a
+     backgrounded viewer crawl; MessageChannel port callbacks are not. rAF would
+     stop outright in a hidden tab and does not exist in this harness. */
+  const js = fs.readFileSync(path.join(ROOT, 'js', 'viewer.js'), 'utf8');
+  assert.match(js, /new MessageChannel\(\)/, 'MessageChannel is used for the yield');
+  assert.match(js, /typeof MessageChannel === 'function'/, 'guarded, for environments without it');
+
+  /* And the render must still complete when MessageChannel is missing, via the
+     setTimeout fallback, because that is the path the rest of the world gets if
+     the guard ever misfires. */
+  const h = await boot({ url: 'http://localhost/viewer/viewer.html?src=published/test.md', markdown: BIG });
+  h.w.MessageChannel = undefined;
+  const content = await bootChunked(h);
+  assert.ok(content.querySelectorAll('h2').length > 5, 'rendered through the fallback path');
+
+  const rendered = content.querySelectorAll('h2').length;
+  const h2 = await boot({ url: 'http://localhost/viewer/viewer.html?src=published/test.md', markdown: BIG });
+  const c2 = await bootChunked(h2);
+  assert.equal(c2.querySelectorAll('h2').length, rendered, 'same result with MessageChannel present');
+});
