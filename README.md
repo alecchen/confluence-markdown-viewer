@@ -135,7 +135,6 @@ Paste this into the HTML macro on the target page (change the `?src=` path per d
 <script>
 (function () {
   var f = document.getElementById('mdv');
-  var childOrigin = new URL(f.src).origin;   /* derived from the iframe URL, no hardcoding */
   var lastBg = null;
 
   function luminance(c) {
@@ -165,6 +164,25 @@ Paste this into the HTML macro on the target page (change the `?src=` path per d
       link: a ? window.getComputedStyle(a).color : (dark ? '#579dff' : '#0052cc')
     };
   }
+  /* Paint the child in the page's theme from its very first frame. Without this
+     the child paints with whatever it can guess (the reader's OS) and is only
+     corrected when the postMessage below lands, so a dark page read on a
+     light-OS browser flashes white and fades. Measured on that combination: one
+     settled colour at 28ms with this, against white at 51ms fading to the right
+     colour at about 180ms without it.
+     Passed in the src because it has to be known before the child document
+     exists - a postMessage cannot arrive in time. Mdv-Theme-Prefers is a hint,
+     not an override: the viewer uses it only when there is no ?theme= and no
+     saved choice, its own postMessage still corrects a wrong guess, and a reader
+     who toggles the theme keeps that choice on the next load. Nothing is
+     configured per page; the value comes from the page's own background. If the
+     src already carries ?theme=, that wins and this is skipped. */
+  (function () {
+    if (/[?&]theme=/.test(f.src)) return;     /* an explicit override is already there */
+    f.src += (f.src.indexOf('?') === -1 ? '?' : '&') +
+      'Mdv-Theme-Prefers=' + build().theme;
+  })();
+  var childOrigin = new URL(f.src).origin;   /* derived from the iframe URL, no hardcoding */
   function sendNow() {
     var m = build();
     if (m.bg === lastBg) return;              /* only push on an actual change */

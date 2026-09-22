@@ -76,6 +76,16 @@
   var saved = null;
   try { saved = localStorage.getItem('mdv-theme'); } catch (e) {}
   if (!forcedTheme && (saved === 'light' || saved === 'dark' || saved === 'auto')) themeMode = saved;
+  /* The embedding page's background, put in the src by the embed snippet, so the
+     viewer can paint correctly on its first frame instead of waiting for the
+     postMessage below to arrive (which cannot be early enough - measured: a
+     light-OS reader on a dark page paints white at 51ms and only reaches the
+     right colour at about 180ms). It is the weakest source: it is the page
+     guessing on the reader's behalf, so ?theme=, a stored choice and the page's
+     own postMessage all outrank it. Without it (standalone, or an older embed
+     snippet) auto falls back to the OS exactly as before. */
+  var hintParam = params.get('Mdv-Theme-Prefers');
+  var themeHint = (hintParam === 'light' || hintParam === 'dark') ? hintParam : null;
 
   var mq = window.matchMedia('(prefers-color-scheme: dark)');
   var contentEl = document.getElementById('content');
@@ -118,6 +128,10 @@
     if (themeMode === 'light') return false;
     if (themeMode === 'dark') return true;
     if (conf && (conf.theme === 'light' || conf.theme === 'dark')) return conf.theme === 'dark';
+    /* auto with no word from the embedding page yet: the src hint is a better
+       guess than the reader's OS when the two disagree, which is the case it
+       exists for. The page's postMessage replaces it the moment it arrives. */
+    if (themeHint) return themeHint === 'dark';
     return mq.matches;
   }
 

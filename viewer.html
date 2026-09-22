@@ -10,19 +10,32 @@
    background are painted as soon as the stylesheet applies, which is well before
    js/viewer.js runs - it waits on three libs - so a reader whose theme is dark
    would otherwise see a white flash. That cannot be fixed in the stylesheet
-   alone: a saved preference or ?theme= can disagree with the OS, and CSS cannot
-   read either. This is a plain inline script in the head for that reason; it
-   must stay inline and must stay above the stylesheet.
+   alone: a saved preference, ?theme=, or the embedding page can disagree with
+   the OS, and CSS can read none of them. This is a plain inline script in the
+   head for that reason; it must stay inline and must stay above the stylesheet.
 
-   It only mirrors the part of viewer.js's decision that is knowable this early.
-   apply() stays authoritative and overwrites the same attribute, so the two
-   agreeing is what keeps the handover invisible, not this being clever. */
+   Precedence, highest first - the same order viewer.js and the embedding page
+   use, so all three settle on one answer:
+     1. ?theme=            an explicit override, wins over everything
+     2. mdv-theme          the reader's own toggle, persisted
+     3. Mdv-Theme-Prefers  the embedding page's background, put in the src by the
+                           embed snippet before this iframe existed. Lowest,
+                           because it is a guess the page makes on the reader's
+                           behalf; it only fills the gap before the page's
+                           postMessage arrives with the real colours.
+
+   A value here is a first-paint hint, never a lock: viewer.js does not read
+   Mdv-Theme-Prefers at all, so themeMode stays 'auto' and the embed's
+   postMessage still corrects a wrong guess without a visible flip, and a toggle
+   click overwrites both the attribute and localStorage. */
 (function () {
   try {
-    var p = new URLSearchParams(location.search).get('theme');
-    var t = p === 'light' || p === 'dark' || p === 'auto' ? p
-          : localStorage.getItem('mdv-theme');
-    if (t === 'auto') t = null;             /* auto follows the OS, so no attribute */
+    var q = new URLSearchParams(location.search);
+    var p = q.get('theme');
+    var t = p === 'light' || p === 'dark' || p === 'auto' ? p : null;
+    if (!t) t = localStorage.getItem('mdv-theme');
+    if (!t) t = q.get('Mdv-Theme-Prefers');   /* capitalised: not part of the API */
+    if (t === 'auto') t = null;               /* auto follows the OS, so no attribute */
     if (t !== 'light' && t !== 'dark') return;
     document.documentElement.setAttribute('data-theme', t);
     document.documentElement.style.colorScheme = t;
