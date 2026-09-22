@@ -1,6 +1,12 @@
 /* Confluence Markdown Viewer — css/viewer.css */
 
-/* Fallback defaults (GitHub light) until js/viewer.js sets the real values */
+/* Fallback defaults (GitHub light) until js/viewer.js sets the real values.
+   Everything a reader sees before the render - the "Loading..." text and the
+   page background - comes from here, because apply() in js/viewer.js cannot run
+   until the three libs have loaded and executed. So the palette has to be right
+   before that, which is what these two rules are for: viewer.html's inline head
+   script sets data-theme from the URL or localStorage, and the media query
+   covers the rest. Both dark blocks below must carry identical values. */
 :root {
   --bg: #ffffff; --fg: #1f2328; --link: #0969da; --muted: #57606a;
   --border: #d0d7de; --table-header: #f6f8fa; --blockquote: #f6f8fa;
@@ -9,7 +15,27 @@
   --tok-n: #0550ae; --tok-t: #8250df; --tok-a: #0a3069;
   color-scheme: light dark;
 }
-:root[data-theme="dark"] { color-scheme: dark; }
+/* Reached only if the head script did not run (no JS); it always sets data-theme
+   otherwise. Same palette js/viewer.js resolves for `auto` dark
+   (CONFLUENCE_DEFAULT.dark), so there is no visible step at handover. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --bg: #1d2125; --fg: #b6c2cf; --link: #579dff; --muted: #9fadbc;
+    --border: #454f59; --table-header: #2a3035; --blockquote: #2a3035;
+    --code-bg: #2e3440; --code-fg: #d8dee9;
+    --tok-k: #81a1c1; --tok-s: #a3be8c; --tok-c: #4c566a;
+    --tok-n: #b48ead; --tok-t: #88c0d0; --tok-a: #8fbcbb;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1d2125; --fg: #b6c2cf; --link: #579dff; --muted: #9fadbc;
+  --border: #454f59; --table-header: #2a3035; --blockquote: #2a3035;
+  --code-bg: #2e3440; --code-fg: #d8dee9;
+  --tok-k: #81a1c1; --tok-s: #a3be8c; --tok-c: #4c566a;
+  --tok-n: #b48ead; --tok-t: #88c0d0; --tok-a: #8fbcbb;
+  color-scheme: dark;
+}
 
 * { box-sizing: border-box; }
 html, body { overflow: hidden; }  /* no page-level scrollbars; iframe is sized to content */

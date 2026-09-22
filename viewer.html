@@ -5,6 +5,30 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>Confluence Markdown Viewer</title>
+<script>
+/* Settle the theme before the first paint. The "Loading..." text and the page
+   background are painted as soon as the stylesheet applies, which is well before
+   js/viewer.js runs - it waits on three libs - so a reader whose theme is dark
+   would otherwise see a white flash. That cannot be fixed in the stylesheet
+   alone: a saved preference or ?theme= can disagree with the OS, and CSS cannot
+   read either. This is a plain inline script in the head for that reason; it
+   must stay inline and must stay above the stylesheet.
+
+   It only mirrors the part of viewer.js's decision that is knowable this early.
+   apply() stays authoritative and overwrites the same attribute, so the two
+   agreeing is what keeps the handover invisible, not this being clever. */
+(function () {
+  try {
+    var p = new URLSearchParams(location.search).get('theme');
+    var t = p === 'light' || p === 'dark' || p === 'auto' ? p
+          : localStorage.getItem('mdv-theme');
+    if (t === 'auto') t = null;             /* auto follows the OS, so no attribute */
+    if (t !== 'light' && t !== 'dark') return;
+    document.documentElement.setAttribute('data-theme', t);
+    document.documentElement.style.colorScheme = t;
+  } catch (e) { /* storage blocked: fall through to the media query */ }
+})();
+</script>
 <link rel="stylesheet" href="css/viewer.css">
 </head>
 <body>

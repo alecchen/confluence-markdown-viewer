@@ -63,13 +63,19 @@
 
   var params = new URLSearchParams(location.search);
   if (params.get('preset') === 'github') preset = 'github';
-  if (['light', 'dark', 'auto'].indexOf(params.get('theme')) !== -1) themeMode = params.get('theme');
+  /* ?theme= is documented as forcing a theme for this load (README, Viewer
+     parameters), so it has to outrank the stored preference - otherwise a reader
+     who has ever clicked the theme toggle can never be forced by an embed, since
+     the toggle writes mdv-theme to their own localStorage. */
+  var themeParam = params.get('theme');
+  var forcedTheme = ['light', 'dark', 'auto'].indexOf(themeParam) !== -1 ? themeParam : null;
+  if (forcedTheme) themeMode = forcedTheme;
   var enableToc = params.get('toc') === '1' || params.get('toc') === 'true';
   var VALID_CODES = ['github', 'nord', 'solarized', 'one-dark', 'atlassian'];
   var codeScheme = VALID_CODES.indexOf(params.get('code')) !== -1 ? params.get('code') : 'default';
   var saved = null;
   try { saved = localStorage.getItem('mdv-theme'); } catch (e) {}
-  if (saved === 'light' || saved === 'dark' || saved === 'auto') themeMode = saved;
+  if (!forcedTheme && (saved === 'light' || saved === 'dark' || saved === 'auto')) themeMode = saved;
 
   var mq = window.matchMedia('(prefers-color-scheme: dark)');
   var contentEl = document.getElementById('content');
