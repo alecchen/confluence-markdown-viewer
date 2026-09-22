@@ -248,8 +248,14 @@
       scheduleDeepLinkScroll();
     }, 400);
   }
-  function addHeadingAnchors() {
-    contentEl.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(function (h) {
+  /* Each enhancer takes the node it should work on: the whole content element
+     for a one-shot render, or just the chunk that was appended when a large doc
+     is rendered progressively. They must never be re-run over the whole document
+     after the first pass - addCopyButtons, enableImageZoom and enableLinkPreviews
+     append or bind without a guard, and rewriteAssetPaths would prefix a path a
+     second time. */
+  function addHeadingAnchors(root) {
+    (root || contentEl).querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(function (h) {
       if (!h.id || h.querySelector('.anchor-link')) return;
       var b = document.createElement('button');
       b.type = 'button';
@@ -270,8 +276,22 @@
       headings.forEach(function (h) {
         items.push('<li class="toc-l' + h.tagName[1] + '"><a href="#' + h.id + '">' + escapeHtml(h.textContent) + '</a></li>');
       });
-      contentEl.insertAdjacentHTML('afterbegin',
-        '<details class="toc" open><summary>Contents</summary><ul>' + items.join('') + '</ul></details>');
+      var details = document.createElement('details');
+      details.className = 'toc';
+      details.open = true;
+      details.innerHTML = '<summary>Contents</summary><ul>' + items.join('') + '</ul>';
+      /* A progressive render reserves a placeholder for the TOC before the first
+         chunk, so filling it in does not push the document down under a reader who
+         has already started reading. A one-shot render has no placeholder. */
+      var slot = contentEl.querySelector(':scope > .mdv-toc-slot');
+      if (slot) {
+        slot.appendChild(details);
+        /* the placeholder kept its intrinsic height while empty; release it */
+        slot.style.minHeight = '';
+        slot.classList.remove('mdv-toc-slot');
+      } else {
+        contentEl.insertBefore(details, contentEl.firstChild);
+      }
       contentEl.querySelectorAll('.toc a').forEach(function (a) {
         a.addEventListener('click', function (e) {
           e.preventDefault();
@@ -279,7 +299,7 @@
         });
       });
     }
-    addHeadingAnchors(headings);
+    addHeadingAnchors();
     var hashId = (location.hash || '').slice(1);
     if (hashId) startDeepLink(hashId);
     if (pendingHash) {
@@ -477,10 +497,17 @@
     return mermaidPromise;
   }
 
-  function collectMermaid() {
-    mermaidBlocks = [];
-    mermaidSeq = 0;
-    contentEl.querySelectorAll('pre code.language-mermaid').forEach(function (code) {
+  function collectMermaid(root) {
+    var el = root || contentEl;
+    /* A progressively rendered doc calls this per chunk, so the block list
+       accumulates across the whole document and renderAllMermaid can render the
+       lot once, in text order, with the ids and the theme memo intact. A one-shot
+       render still starts from empty. */
+    if (el === contentEl) {
+      mermaidBlocks = [];
+      mermaidSeq = 0;
+    }
+    el.querySelectorAll('pre code.language-mermaid').forEach(function (code) {
       var src = code.textContent;
       var pre = code.parentNode;
       pre.classList.add('mdv-mermaid');   /* not 'mermaid': avoid auto-init on script load */
@@ -526,8 +553,8 @@
   }
 
   /* ---------- copy-code buttons ---------- */
-  function addCopyButtons() {
-    contentEl.querySelectorAll('pre').forEach(function (pre) {
+  function addCopyButtons(root) {
+    (root || contentEl).querySelectorAll('pre').forEach(function (pre) {
       if (pre.classList.contains('mdv-mermaid')) return;
       var btn = document.createElement('button');
       btn.type = 'button';
@@ -673,8 +700,8 @@
     return /\/\/(?:img\.)?shields\.io\//.test(src);
   }
 
-  function enableImageZoom() {
-    contentEl.querySelectorAll('img').forEach(function (img) {
+  function enableImageZoom(root) {
+    (root || contentEl).querySelectorAll('img').forEach(function (img) {
       img.addEventListener('click', function () {
         /* linked images keep the link's own behavior (matches GitHub) */
         if (img.closest('a')) return;
@@ -693,17 +720,18 @@
     return parts.join('/');
   })();
 
-  function rewriteAssetPaths() {
+  function rewriteAssetPaths(root) {
     if (!srcDir) return;
+    var el = root || contentEl;
     var prefix = srcDir + '/';
-    contentEl.querySelectorAll('img[src], a[href], video[src], audio[src], source[src]').forEach(function (el) {
+    el.querySelectorAll('img[src], a[href], video[src], audio[src], source[src]').forEach(function (el) {
       var attr = el.hasAttribute('src') ? 'src' : 'href';
       var v = el.getAttribute(attr);
       if (!v) return;
       if (/^(?:[a-z][a-z0-9+.-]*:|\/|#)/i.test(v) || v.indexOf('//') === 0) return;
       el.setAttribute(attr, prefix + v);
     });
-    contentEl.querySelectorAll('a[data-preview]').forEach(function (a) {
+    el.querySelectorAll('a[data-preview]').forEach(function (a) {
       var v = a.getAttribute('data-preview');
       if (v && !/^(?:[a-z][a-z0-9+.-]*:|\/|#)/i.test(v) && v.indexOf('//') !== 0) {
         a.setAttribute('data-preview', prefix + v);
@@ -714,8 +742,8 @@
   /* Content links open in a new tab: inside the Confluence iframe, navigating
      the frame would lose the page. Fragment links (#...) stay in-frame so the
      viewer can scroll to them (TOC links are fragment links). */
-  function setLinkTargets() {
-    contentEl.querySelectorAll('a[href]').forEach(function (a) {
+  function setLinkTargets(root) {
+    (root || contentEl).querySelectorAll('a[href]').forEach(function (a) {
       var href = a.getAttribute('href');
       if (!href || href.charAt(0) === '#') return;
       a.setAttribute('target', '_blank');
@@ -723,9 +751,9 @@
     });
   }
 
-  function hoistPreviewTitles() {
+  function hoistPreviewTitles(root) {
     if (!window.matchMedia('(hover: hover)').matches) return;
-    contentEl.querySelectorAll('a[title^="preview:"]').forEach(function (a) {
+    (root || contentEl).querySelectorAll('a[title^="preview:"]').forEach(function (a) {
       a.setAttribute('data-preview', a.getAttribute('title').replace(/^preview:\s*/, ''));
       a.removeAttribute('title');
     });
@@ -788,9 +816,9 @@
     previewEl.style.left = left + 'px';
   }
 
-  function enableLinkPreviews() {
+  function enableLinkPreviews(root) {
     if (!window.matchMedia('(hover: hover)').matches) return;
-    contentEl.querySelectorAll('a[data-preview]').forEach(function (a) {
+    (root || contentEl).querySelectorAll('a[data-preview]').forEach(function (a) {
       a.addEventListener('mouseenter', function () { showPreview(a); });
       a.addEventListener('mouseleave', hidePreview);
       var img = new Image();
@@ -805,30 +833,154 @@
      50-line log dump costs ~130ms, and a doc full of them blocks the first paint
      for a second or more. Untagged blocks keep the plain code background, which
      is how the author asked for them to be read anyway. */
-  function highlightCode() {
-    contentEl.querySelectorAll('pre code[class*="language-"]').forEach(function (el) {
+  function highlightCode(root) {
+    (root || contentEl).querySelectorAll('pre code[class*="language-"]').forEach(function (el) {
       if (el.classList.contains('language-mermaid')) return;
       hljs.highlightElement(el);
     });
   }
 
+  /* ---------- render ---------- */
+  /* Every whole-document enhancer, scoped to a root. Passing contentEl is the
+     one-shot render; passing a chunk's detached holder is the progressive render.
+     Order matters in three places: hoistPreviewTitles must precede
+     rewriteAssetPaths (the paths it prefixes are the ones the hoist creates),
+     collectMermaid must precede addCopyButtons (a mermaid pre must not get a Copy
+     button), and enhanceHeadings must precede setLinkTargets (TOC links are
+     fragment links and must not get target=_blank). */
+  function enhanceAll(root) {
+    hoistPreviewTitles(root);
+    rewriteAssetPaths(root);
+    highlightCode(root);
+    collectMermaid(root);
+    setLinkTargets(root);
+    enableImageZoom(root);
+    enableLinkPreviews(root);
+    addCopyButtons(root);
+  }
+
   function render(text) {
     contentEl.innerHTML = marked.parse(text);
-    hoistPreviewTitles();
-    rewriteAssetPaths();
-    highlightCode();
-    collectMermaid();
+    enhanceAll();
     enhanceHeadings();
-    setLinkTargets();
-    enableImageZoom();
-    enableLinkPreviews();
-    addCopyButtons();
     rendered = true;
     apply();
   }
   function fail(msg) {
     contentEl.textContent = msg;
     apply();
+  }
+
+  /* ---------- progressive render ----------
+     A large doc parsed and inserted in one shot keeps the reader on "Loading..."
+     for as long as the whole thing takes (~170ms at 1MB, ~420ms at 2MB, seconds by
+     10MB), because nothing paints until the last step finishes. Splitting the
+     markdown at top-level headings and appending one chunk at a time lets the
+     first section appear almost immediately.
+
+     Two details make this exact rather than approximate:
+
+     - The markdown is lexed ONCE and sliced by token, then each slice is run
+       through marked's parser. Reference definitions therefore still resolve
+       across chunk boundaries, and because the heading-id extension keeps its
+       slugger in module state, resetting it once before the loop gives every
+       chunk a share of the same de-duplication - a doc with two "## Setup"
+       headings gets setup and setup-1 in the chunked render exactly as in the
+       whole-document one. The concatenated HTML is identical to marked.parse on
+       the whole text; test/render-chunking.test.js asserts that with its own
+       independent splitter.
+
+     - Frames are yielded only after the first chunk, then once per FRAME_BUDGET
+       of work. Yielding per chunk is what a naive version does and it is far
+       worse than not chunking at all: every yield costs a frame (~16ms), so a
+       doc with 2400 headings spent 36 SECONDS in frame waits. One yield after the
+       first chunk costs nothing measurable and is what buys the visible win. */
+  var CHUNK_THRESHOLD = 150000;   /* chars; below this a single synchronous parse */
+  var FRAME_BUDGET = 25;          /* ms of parsing per yielded frame */
+
+  /* Split lexed block tokens at top-level headings. A heading always closes the
+     block before it, so no construct is cut in half: a list or table cannot
+     continue across an h1/h2 boundary in CommonMark. */
+  function chunkTokens(tokens) {
+    var chunks = [];
+    var cur = [];
+    for (var i = 0; i < tokens.length; i++) {
+      var t = tokens[i];
+      if (t.type === 'heading' && t.depth <= 2 && cur.length) {
+        chunks.push(cur);
+        cur = [];
+      }
+      cur.push(t);
+    }
+    if (cur.length) chunks.push(cur);
+    return chunks;
+  }
+
+  function renderChunked(text) {
+    if (window.markedGfmHeadingId && markedGfmHeadingId.resetHeadings) {
+      markedGfmHeadingId.resetHeadings();
+    }
+    /* Drop the "Loading…" placeholder the chunked path appends after rather than
+       replacing, the way the one-shot path's innerHTML assignment does. */
+    contentEl.textContent = '';
+    /* With ?toc=1 the TOC is only known once every chunk is in, but it belongs at
+       the top. Reserve its space now so filling it in later does not shove the
+       document down under a reader who is already reading the first chunks. The
+       placeholder nests a collapsed details with the same styling, so the reserved
+       space is the TOC's own intrinsic height. */
+    if (enableToc) {
+      var slot = document.createElement('div');
+      slot.className = 'mdv-toc-slot';
+      var measure = document.createElement('details');
+      measure.className = 'toc';
+      measure.innerHTML = '<summary>Contents</summary><ul><li></li></ul>';
+      slot.appendChild(measure);
+      contentEl.appendChild(slot);
+    }
+    var chunks = chunkTokens(marked.lexer(text));
+    var i = 0;
+
+    function step() {
+      var started = Date.now();
+      while (i < chunks.length) {
+        var holder = document.createElement('div');
+        holder.innerHTML = marked.parser(chunks[i]);
+        /* Enhancers run on the detached holder, so an id lookup inside them
+           (getElementById for a heading) can never see a half-built chunk. */
+        enhanceAll(holder);
+        var frag = document.createDocumentFragment();
+        while (holder.firstChild) frag.appendChild(holder.firstChild);
+        contentEl.appendChild(frag);
+        i++;
+        /* keep pulling work until the frame's budget is spent */
+        if (Date.now() - started >= FRAME_BUDGET) break;
+      }
+
+      /* Report the height once per frame, not per chunk: scheduleHeight() would
+         just restart its 50ms debounce on every chunk and so fire only once, after
+         everything is in, which is the behaviour that keeps the early chunks
+         hidden below a not-yet-grown iframe. reportHeight() is a no-op when the
+         height has not changed, and one layout per frame is affordable. */
+      reportHeight();
+
+      if (i < chunks.length) {
+        /* One yield per budgeted frame. setTimeout rather than rAF so a hidden
+           iframe (a Confluence tab in the background) still makes progress, and
+           so this works where rAF is absent. */
+        setTimeout(step, 0);
+        return;
+      }
+
+      enhanceHeadings();
+      rendered = true;
+      apply();
+    }
+    step();
+  }
+
+  function renderDocument(text) {
+    if (text.length >= CHUNK_THRESHOLD) renderChunked(text);
+    else render(text);
   }
 
   marked.setOptions({ gfm: true, breaks: false, pedantic: false });
@@ -872,7 +1024,7 @@
   } else {
     fetch(src)
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-      .then(render)
+      .then(renderDocument)
       .catch(function (err) { fail('Failed to load "' + src + '": ' + err.message); });
   }
 

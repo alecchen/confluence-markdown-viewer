@@ -2,3 +2,29 @@
 # Requires AllowOverride in Apache userdir; verify after deploy (see README).
 RedirectMatch 404 /\.git(/|$)
 RedirectMatch 404 /\.[^/]*$
+
+# Compress what the viewer loads. lib/highlight.min.js is 122KB raw and 41KB
+# gzipped, viewer.js 37KB -> 12KB; served uncompressed the three vendored libs
+# alone cost ~216KB on every cold load. Only applies if the module is enabled
+# (a2enmod deflate) and AllowOverride permits it here - check with:
+#   curl -sI -H 'Accept-Encoding: gzip' <viewer url>/lib/highlight.min.js | grep -i content-encoding
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/css text/markdown
+  AddOutputFilterByType DEFLATE application/javascript text/javascript application/json
+  AddOutputFilterByType DEFLATE image/svg+xml
+  # Never re-compress an already-compressed payload.
+  SetEnvIfNoCase Request_URI \.(?:png|jpe?g|gif|webp|zip|gz|pdf)$ no-gzip dont-vary
+</IfModule>
+
+# The viewer is a static app; markdown and assets are replaced by git pull, so a
+# short cache with revalidation keeps reloads cheap without serving stale docs.
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/css "access plus 1 hours"
+  ExpiresByType application/javascript "access plus 1 hours"
+  ExpiresByType text/javascript "access plus 1 hours"
+  ExpiresByType image/svg+xml "access plus 1 days"
+  # Markdown is the content, published by commit - always revalidate it.
+  ExpiresByType text/plain "access plus 0 seconds"
+  ExpiresByType text/markdown "access plus 0 seconds"
+</IfModule>

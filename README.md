@@ -383,7 +383,7 @@ npm test                        # alignment test fails on a stale lib/
 
 ## Performance
 
-What delayed the first render, in the order it showed up:
+What delays the first render, in the order it showed up:
 
 1. **Untagged code fences.** highlight.js auto-detection (`highlightAuto`) runs
    every registered grammar over the block and stops at the first line that looks
@@ -392,11 +392,51 @@ What delayed the first render, in the order it showed up:
    highlighting before it painted anything. Fixed by highlighting only fences the
    author tagged with a language (`highlightCode()` in `js/viewer.js`).
 2. **Three cross-origin script fetches** before the first render, each paying its
-   own connection setup. Fixed by vendoring them in `lib/` (above).
-3. **Mermaid**, if the doc has a diagram: 1MB, but lazy and only for docs that
-   ask for it, so it is left on the CDN.
+   own connection setup. Fixed by vendoring them in `lib/` (above). Check that
+   Apache compresses them — see `.htaccess`.
+3. **Large documents.** A doc parsed and inserted in one shot paints nothing until
+   the whole thing is done, so the reader sits on "Loading…" for the full parse.
+   Contents over `CHUNK_THRESHOLD` (150k characters) are rendered progressively
+   (below).
 
-After (1) and (2), the doc renders as soon as `viewer.js` and the markdown arrive.
+### Progressive rendering for large documents
+
+`renderChunked()` splits the document at top-level headings and appends one chunk
+at a time, so the first section appears in a fraction of the time the whole
+document takes. Measured cold-cache, embedded in a parent page like the real
+embed:
+
+| document | first content before | first content after | full render before → after |
+| --- | --- | --- | --- |
+| 0.5MB | 403ms | **160ms** | 403 → 282ms |
+| 1.3MB | 920ms | **195ms** | 920 → 375ms |
+| 2.7MB | 1843ms | **263ms** | 1843 → 823ms |
+
+Two things make it exact rather than approximate:
+
+- The markdown is **lexed once** and the token stream is sliced, then each slice
+  is parsed. Reference definitions (`[x]: url`) therefore still resolve across a
+  chunk boundary, and because the heading-id extension keeps its slugger in module
+  state, resetting it once before the loop de-duplicates heading ids globally —
+  two `## Setup` headings become `setup` and `setup-1` exactly as in a
+  whole-document parse. `test/render-chunking.test.js` asserts the spliced parse is
+  byte-identical to `marked.parse` on the whole text.
+- Because a heading always closes the preceding block, no construct can be cut in
+  half: a list, table or fence cannot continue across an `#`/`##` line.
+
+The chunk count is high (one per section), so frames are yielded by **work
+budget**, not per chunk: yielding after every chunk does not merely cost some
+overhead, it is far slower than not chunking at all. Every yield costs a frame
+(~16ms), so a 2400-heading document that yielded per chunk spent 36 seconds in
+frame waits. Chunks are now pulled continuously until `FRAME_BUDGET` (25ms) is
+spent, with one yield per frame after that. The iframe height is reported once per
+frame too, so the page grows as chunks land instead of jumping from the loading
+height to full height at the end.
+
+`test/render-chunking.test.js` also pins the boundary rule against an independent
+text-based splitter, so the two cannot silently disagree.
+
+### Theme propagation
 
 The theme is pushed by the embed script on iframe `load` and every 1.5s after, so
 a theme toggle shows up in the viewer up to 1.5s later. That is a delay a reader
@@ -412,12 +452,12 @@ deployed.
 
 ```sh
 npm install        # dev-only; installs jsdom + the packages vendored into lib/
-npm test           # node:test — 90+ assertions across the README's features
+npm test           # node:test — 95 assertions across the README's features
 ```
 
 - One test file per feature area in `test/` (`markdown-rendering`, `headings-toc`,
   `asset-paths`, `image-sizes`, `code-copy-mermaid`, `gantt-timezone`, `themes`,
-  `messaging`, `params`).
+  `messaging`, `params`, `render-chunking`).
 - The libs under test come from `package.json`; `alignment.test.js` fails if
   `lib/` drifts from the installed packages or the mermaid CDN pin drifts.
 - Not covered here: real mermaid SVG rendering, real clipboard writes, and the
